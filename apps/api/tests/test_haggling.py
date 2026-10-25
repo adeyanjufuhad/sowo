@@ -11,8 +11,19 @@ def test_demo_offer_counters_and_accepts() -> None:
 
 
 def test_exact_floor_accepts_and_above_list_is_capped() -> None:
-    assert evaluate_offer(4500000, 4000000, 4000000, 0).price_kobo == 4000000
-    assert evaluate_offer(4500000, 4000000, 5000000, 0).price_kobo == 4500000
+    at_floor = evaluate_offer(4500000, 4000000, 4000000, 0)
+    above_list = evaluate_offer(4500000, 4000000, 5000000, 0)
+    assert (at_floor.action, at_floor.price_kobo) == ("accept", 4000000)
+    assert (above_list.action, above_list.price_kobo) == ("accept", 4500000)
+
+
+def test_returned_money_values_are_integers() -> None:
+    decisions = [
+        evaluate_offer(4500000, 4000000, 3500000, 0),
+        evaluate_offer(4500000, 4000000, 4100000, 0),
+        evaluate_offer(4500000, 4000000, 5000000, 0),
+    ]
+    assert all(isinstance(decision.price_kobo, int) for decision in decisions)
 
 
 @pytest.mark.parametrize("list_price,floor_price", [(4500000, 4000000), (1000000, 600000), (850000, 850000)])
