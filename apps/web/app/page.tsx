@@ -4,8 +4,8 @@ import { Hero } from "@/components/landing/hero";
 import { HowItWorks } from "@/components/landing/how-it-works";
 import { OpenByDesign } from "@/components/landing/open-by-design";
 import { Problem } from "@/components/landing/problem";
+import { EngineSection } from "@/components/landing/engine-section";
 import { ReplaySection } from "@/components/landing/replay-section";
-import { Ribbon } from "@/components/landing/ribbon";
 import { SiteFooter } from "@/components/landing/site-footer";
 import { SiteHeader } from "@/components/landing/site-header";
 import { StackStrip } from "@/components/landing/stack-strip";
@@ -24,7 +24,7 @@ export default function Home() {
         <Problem />
         <HowItWorks />
         <ReplaySection messages={messages} />
-        <Ribbon />
+        <EngineSection />
         <Features />
         <OpenByDesign />
         <ClosingCta />
