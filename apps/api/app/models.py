@@ -34,7 +34,8 @@ class OrderStatus(str, enum.Enum):
 class OfferDecision(str, enum.Enum):
     ACCEPT = "ACCEPT"
     COUNTER = "COUNTER"
-    HOLD = "HOLD"
+    REJECT = "REJECT"
+    HANDOFF = "HANDOFF"
 
 
 class Vendor(Base):
