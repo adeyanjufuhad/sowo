@@ -1,7 +1,8 @@
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import Offer, OfferDecision as StoredOfferDecision, Product
+from app.models import Offer, Product
+from app.models import OfferDecision as StoredOfferDecision
 from app.services.haggling import OfferDecision, evaluate_offer
 
 
