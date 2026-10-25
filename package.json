@@ -1,0 +1,20 @@
+{
+  "name": "sowo",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AI sales assistant for Nigerian vendors who sell on WhatsApp. Sowo dey sell while you sleep.",
+  "license": "MIT",
+  "packageManager": "pnpm@10.34.9",
+  "engines": {
+    "node": ">=20.9"
+  },
+  "scripts": {
+    "dev": "pnpm --filter web dev",
+    "build": "pnpm --filter web build",
+    "start": "pnpm --filter web start",
+    "lint": "pnpm -r --if-present lint",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm -r --if-present test",
+    "check": "pnpm lint && pnpm typecheck && pnpm test"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "name": "@sowo/shared",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Types, API contract and money helpers shared by apps/web and apps/api.",
+  "license": "MIT",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "typescript": "^5",
+    "vitest": "^4"
+  }
+}
