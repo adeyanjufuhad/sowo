@@ -92,7 +92,9 @@ export function respond(
   if (PIDGIN.test(text)) memory.lang = "pcm";
   else if (/\b(the|please|could|would|can you|is|are)\b/i.test(text)) memory.lang = "en";
   const lang = memory.lang;
-  const firstName = customerName.split(" ")[0] ?? customerName;
+  // Address real buyers by first name; the simulator's "Demo buyer" gets no name.
+  const firstName = customerName === "Demo buyer" ? "" : (customerName.split(" ")[0] ?? "");
+  const named = firstName ? `, ${firstName}` : "";
   const calls: ToolCall[] = [];
   const turn = (body: string, escalate = false): AgentTurn => ({ body, toolCalls: calls, escalate });
 
@@ -101,8 +103,8 @@ export function respond(
     return turn(
       say(
         lang,
-        `Thanks for letting us know, ${firstName}. ${VENDOR_OWNER} handles this herself, so I've flagged it for her and she'll reply here shortly.`,
-        `Thank you for telling us, ${firstName}. Na ${VENDOR_OWNER} dey handle this kind matter herself. I don call her attention, she go reply you here soon.`,
+        `Thanks for letting us know${named}. ${VENDOR_OWNER} handles this herself, so I've flagged it for her and she'll reply here shortly.`,
+        `Thank you for telling us${named}. Na ${VENDOR_OWNER} dey handle this kind matter herself. I don call her attention, she go reply you here soon.`,
       ),
       true,
     );
@@ -258,8 +260,8 @@ export function respond(
     return turn(
       say(
         lang,
-        `Hello ${firstName}, welcome to Ada's Footwear! What are you looking for today?`,
-        `How far ${firstName}! Welcome to Ada's Footwear. Wetin you dey find today?`,
+        `Hello${named ? ` ${firstName}` : ""}, welcome to Ada's Footwear! What are you looking for today?`,
+        `How far${named ? ` ${firstName}` : ""}! Welcome to Ada's Footwear. Wetin you dey find today?`,
       ),
     );
   }

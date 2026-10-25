@@ -8,8 +8,6 @@ export interface ToolCallSummary {
   server: string;
 }
 
-const sku = (productId: string) => productId.replace(/^prod_/, "").replaceAll("_", "-").toUpperCase();
-
 /** One-line, human readable view of a tool call for the replay. Never shows a floor price: there isn't one to show. */
 export function summarizeToolCall(call: ToolCall): ToolCallSummary {
   switch (call.tool) {
@@ -28,7 +26,7 @@ export function summarizeToolCall(call: ToolCall): ToolCallSummary {
       const { decision, counterKobo, agreedPriceKobo } = call.output;
       return {
         tool: call.tool,
-        model: `offer ${formatNaira(call.input.offerKobo)} on ${sku(call.input.productId)}`,
+        model: `offer ${formatNaira(call.input.offerKobo)} on ${call.input.productId}`,
         server:
           decision === "ACCEPT"
             ? `ACCEPT at ${formatNaira(agreedPriceKobo ?? 0)}`
@@ -37,7 +35,7 @@ export function summarizeToolCall(call: ToolCall): ToolCallSummary {
     }
     case "get_quote": {
       const q = call.output;
-      const items = call.input.items.map((i) => `${i.quantity}× ${sku(i.productId)}`).join(", ");
+      const items = call.input.items.map((i) => `${i.quantity}× ${i.productId}`).join(", ");
       return {
         tool: call.tool,
         model: `${items} to ${call.input.deliveryArea}`,
