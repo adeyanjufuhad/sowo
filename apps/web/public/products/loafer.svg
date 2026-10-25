@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-label="Loafers placeholder">
+  <rect width="160" height="160" rx="24" fill="#F4E3D7"/>
+  <path d="M28 104c0-8 6-14 14-14h30c10 0 18-14 30-14 14 0 30 12 30 24v6c0 6-4 10-10 10H38c-6 0-10-4-10-10z" fill="#7A3B1E" opacity=".9"/>
+  <rect x="28" y="114" width="104" height="8" rx="4" fill="#7A3B1E" opacity=".35"/>
+  <text x="80" y="48" text-anchor="middle" font-family="system-ui, sans-serif" font-size="15" font-weight="600" fill="#7A3B1E">Loafers</text>
+</svg>
