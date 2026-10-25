@@ -4,17 +4,11 @@ import type { Message } from "@sowo/shared";
 import { CheckCheck, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
-import { summarizeToolCall } from "./tool-call-summary";
+import { watTime } from "@/lib/format";
+import { summarizeToolCall } from "@/lib/tool-calls";
 
 const BUYER_PAUSE_MS = 1300;
 const TYPING_MS = 1100;
-
-/** "21:41" in West Africa Time, computed by hand so server and browser agree. */
-function watTime(iso: string): string {
-  const date = new Date(iso);
-  const hours = (date.getUTCHours() + 1) % 24;
-  return `${String(hours).padStart(2, "0")}:${String(date.getUTCMinutes()).padStart(2, "0")}`;
-}
 
 function isReceipt(message: Message) {
   return message.sender === "AI" && !message.toolCalls && message.body.includes("Receipt");

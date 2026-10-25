@@ -1,9 +1,10 @@
 import { ArrowRight, ArrowUpRight } from "lucide-react";
-import BlurText from "@/components/BlurText";
 import { ButtonLink } from "@/components/ui/button";
 import { GITHUB_URL } from "@/lib/site";
 import { cn } from "@/lib/utils";
 import { Clay, type ClayName } from "./clay";
+
+const HEADLINE = "Sowo dey sell while you sleep.";
 
 /** Clay objects floating around the mascot. Positions are % of the stage. */
 const FLOATERS: {
@@ -28,8 +29,12 @@ export function Hero() {
       <div className="mx-auto max-w-6xl">
         {/* Stage: mascot in the middle, clay objects drifting around it */}
         <div className="relative mx-auto h-[230px] max-w-5xl sm:h-[360px]">
-          <div className="absolute inset-x-0 bottom-0 mx-auto w-[190px] sm:w-[320px]">
-            <Clay name="mascot" size={320} priority className="h-auto w-full" />
+          <div className="absolute inset-x-0 bottom-0 mx-auto w-[190px] sm:w-[300px]">
+            <span
+              aria-hidden
+              className="absolute inset-x-[12%] -bottom-2 h-6 rounded-[50%] bg-[radial-gradient(closest-side,rgba(110,62,30,0.22),transparent)]"
+            />
+            <Clay name="mascot" size={300} priority className="relative h-auto w-full" />
           </div>
           {FLOATERS.map((f) => (
             <div
@@ -49,14 +54,17 @@ export function Hero() {
 
         <div className="relative mx-auto mt-6 max-w-3xl text-center">
           <h1 id="hero-title" className="mx-auto max-w-[8.6em] font-display text-[44px] leading-[0.95] font-semibold tracking-[-0.045em] text-balance text-ink sm:text-7xl">
-            <BlurText
-              text="Sowo dey sell while you sleep."
-              animateBy="words"
-              direction="bottom"
-              trigger="load"
-              delay={90}
-              className="justify-center"
-            />
+            {/* Pure CSS word-by-word entrance: visible even before (or without) JavaScript */}
+            {HEADLINE.split(" ").map((word, i) => (
+              <span key={i}>
+                <span
+                  className="inline-block animate-[word-in_800ms_var(--ease-smooth)_both]"
+                  style={{ animationDelay: `${120 + i * 90}ms` }}
+                >
+                  {word}
+                </span>{" "}
+              </span>
+            ))}
           </h1>
           <p className="mx-auto mt-6 max-w-[56ch] text-base leading-relaxed text-ink-soft text-pretty sm:text-lg">
             An AI sales assistant for Nigerian vendors on WhatsApp. It answers buyers in seconds, haggles down to the

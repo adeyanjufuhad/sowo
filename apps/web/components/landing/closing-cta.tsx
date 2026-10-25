@@ -5,10 +5,10 @@ import { Reveal } from "./reveal";
 
 export function ClosingCta() {
   return (
-    <section aria-labelledby="cta-title" className="px-4 pb-24 sm:px-6 sm:pb-32">
+    <section aria-labelledby="cta-title" className="px-4 pb-14 sm:px-6 sm:pb-16">
       <div className="mx-auto grid max-w-6xl items-center gap-8 md:grid-cols-[1fr_1.1fr]">
-        <Reveal className="mx-auto w-full max-w-[380px]">
-          <Clay name="night" size={380} className="h-auto w-full" />
+        <Reveal className="mx-auto w-full max-w-[300px]">
+          <Clay name="night" size={300} className="h-auto w-full" />
         </Reveal>
         <Reveal delay={120} className="text-center md:text-left">
           <h2

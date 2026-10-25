@@ -115,3 +115,30 @@ describe("mock simulator", () => {
     ]);
   });
 });
+
+describe("message ordering", () => {
+  it("keeps a fast payment's receipt after Sowo's last reply", () => {
+    const state = createEmptyState();
+    const now = new Date("2026-10-27T19:41:00.000Z");
+    const send = (body: string, conversationId?: string) =>
+      receiveBuyerMessage(state, { conversationId, platform: "SIMULATOR", body }, now);
+    const id = send("How much for the black loafers? Size 43").conversation.id;
+    send("I'll take it. Deliver to Yaba", id);
+    // Paid the same instant the reply (stamped two seconds ahead) went out.
+    settlePayment(state, state.orders[0]?.paymentReference ?? "", "SUCCESS", now);
+    const bodies = listMessages(state, id).messages.map((m) => m.body);
+    expect(bodies.at(-1)).toContain("Receipt");
+  });
+});
+
+describe("addressing the buyer", () => {
+  it("uses a real buyer's first name but not the simulator's placeholder", () => {
+    const state = createEmptyState();
+    const now = new Date("2026-10-27T19:41:00.000Z");
+    const reply = (customerName: string) =>
+      receiveBuyerMessage(state, { customerName, platform: "SIMULATOR", body: "These heels are too tight, can I exchange them?" }, now)
+        .messages[1]?.body ?? "";
+    expect(reply("Demola K.")).toContain(", Demola.");
+    expect(reply("Demo buyer")).not.toMatch(/Demo/);
+  });
+});

@@ -58,6 +58,21 @@ export function createEmptyState(): MockState {
   };
 }
 
+/** Plain-JSON form of the state, for saving in the browser. */
+export type SerializedMockState = Omit<MockState, "memory" | "deals" | "quotes"> & {
+  memory: [string, AgentMemory][];
+  deals: [string, Deal][];
+  quotes: [string, { quote: Quote; conversationId: string }][];
+};
+
+export function serializeState(state: MockState): SerializedMockState {
+  return { ...state, memory: [...state.memory], deals: [...state.deals], quotes: [...state.quotes] };
+}
+
+export function deserializeState(data: SerializedMockState): MockState {
+  return { ...data, memory: new Map(data.memory), deals: new Map(data.deals), quotes: new Map(data.quotes) };
+}
+
 function nextId(state: MockState, prefix: string): string {
   state.seq += 1;
   return `${prefix}_${state.seq.toString(36)}`;
@@ -83,12 +98,15 @@ function addMessage(
   at: Date,
   toolCalls?: ToolCall[],
 ): Message {
+  // Never earlier than the latest message: replies are stamped a moment ahead, and
+  // a fast buyer (or a payment) can arrive within that moment.
+  const createdAt = new Date(Math.max(at.getTime(), Date.parse(conversation.lastMessageAt) + 1));
   const message: Message = {
     id: nextId(state, "msg"),
     conversationId: conversation.id,
     sender,
     body,
-    createdAt: at.toISOString(),
+    createdAt: createdAt.toISOString(),
     ...(toolCalls?.length ? { toolCalls } : {}),
   };
   state.messages.push(message);

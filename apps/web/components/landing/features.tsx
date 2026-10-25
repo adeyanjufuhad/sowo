@@ -19,8 +19,8 @@ function Tile({
 }) {
   return (
     <Reveal delay={delay} className={cn("flex flex-col", className)}>
-      <div className="flex-1 rounded-[2rem] bg-paper-deep/70 p-1.5 ring-1 ring-line">
-        <div className="flex h-full min-h-[240px] items-center justify-center rounded-[calc(2rem-0.375rem)] bg-card p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] sm:p-8">
+      <div className="rounded-[2rem] bg-paper-deep/70 p-1.5 ring-1 ring-line">
+        <div className="flex min-h-[240px] items-center justify-center md:h-[300px] rounded-[calc(2rem-0.375rem)] bg-card p-6 shadow-[inset_0_1px_0_rgba(255,255,255,0.9)] sm:p-8">
           {children}
         </div>
       </div>
