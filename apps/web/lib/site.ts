@@ -1,6 +1,6 @@
 // Site-wide constants for the landing page and footer.
 
-export const GITHUB_URL = process.env.NEXT_PUBLIC_GITHUB_URL || "https://github.com";
+export const GITHUB_URL = process.env.NEXT_PUBLIC_GITHUB_URL || "https://github.com/adeyanjufuhad/sowo";
 
 export const EVENT_NAME = "OSCA OPEN//BUILD 2026";
 

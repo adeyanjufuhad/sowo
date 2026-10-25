@@ -38,7 +38,7 @@ export function HowItWorks() {
           </h2>
         </Reveal>
 
-        <ol className="mt-16 grid gap-x-6 gap-y-12 sm:grid-cols-2 lg:grid-cols-4">
+        <ol className="mt-12 grid grid-cols-2 gap-x-4 gap-y-10 sm:mt-16 sm:gap-x-6 sm:gap-y-12 lg:grid-cols-4">
           {STEPS.map((step, i) => (
             <li key={step.title}>
               <Reveal delay={i * 110} className="flex flex-col items-center text-center">
@@ -46,8 +46,8 @@ export function HowItWorks() {
                   <Clay name={step.pose} size={240} className="h-auto w-full" />
                 </div>
                 <p className="mt-6 font-mono text-xs text-muted">0{i + 1}</p>
-                <h3 className="mt-1 font-display text-xl font-semibold tracking-[-0.02em]">{step.title}</h3>
-                <p className="mt-2 max-w-[30ch] text-[15px] leading-relaxed text-muted">{step.body}</p>
+                <h3 className="mt-1 font-display text-lg font-semibold tracking-[-0.02em] sm:text-xl">{step.title}</h3>
+                <p className="mt-2 max-w-[30ch] text-sm leading-relaxed text-muted sm:text-[15px]">{step.body}</p>
               </Reveal>
             </li>
           ))}

@@ -48,11 +48,11 @@ function PriceLadder() {
           </li>
         ))}
       </ol>
-      <div className="mt-3 flex items-center justify-between rounded-xl border border-dashed border-accent/50 px-4 py-2.5">
-        <span className="flex items-center gap-2 text-sm text-muted">
+      <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-dashed border-accent/50 px-4 py-2.5">
+        <span className="flex items-center gap-2 text-sm whitespace-nowrap text-muted">
           <EyeOff aria-hidden className="size-4" strokeWidth={1.75} /> Your floor
         </span>
-        <span className="font-mono text-sm text-muted">only you see this</span>
+        <span className="text-right text-xs text-muted">Only you see it</span>
       </div>
     </div>
   );
