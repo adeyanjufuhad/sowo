@@ -13,10 +13,7 @@ const eslintConfig = defineConfig([
     "build/**",
     "next-env.d.ts",
     // Third-party components copied in from the React Bits registry (reactbits.dev).
-    "components/BlurText.tsx",
-    "components/CurvedLoop.tsx",
     "components/LogoLoop.tsx",
-    "components/RotatingText.tsx",
   ]),
 ]);
 

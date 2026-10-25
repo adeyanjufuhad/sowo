@@ -76,7 +76,7 @@ export function SiteFooter() {
       {/* Oversized wordmark, cropped by the bottom edge */}
       <p
         aria-hidden
-        className="pointer-events-none -mb-[0.28em] text-center font-display text-[32vw] leading-[0.8] font-bold tracking-[-0.07em] text-paper/[0.06] select-none"
+        className="pointer-events-none -mb-[0.28em] text-center font-display text-[22vw] leading-[0.8] font-bold tracking-[-0.07em] text-paper/[0.06] select-none"
       >
         sowo
       </p>

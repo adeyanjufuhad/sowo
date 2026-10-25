@@ -42,8 +42,8 @@ export function HowItWorks() {
           {STEPS.map((step, i) => (
             <li key={step.title}>
               <Reveal delay={i * 110} className="flex flex-col items-center text-center">
-                <div className="grid aspect-square w-full max-w-[240px] place-items-center rounded-[2rem] bg-paper">
-                  <Clay name={step.pose} size={240} className="h-auto w-full" />
+                <div className="grid aspect-square w-full max-w-[240px] place-items-center rounded-[2rem] bg-paper p-5 sm:p-7">
+                  <Clay name={step.pose} size={200} className="h-auto w-full" />
                 </div>
                 <p className="mt-6 font-mono text-xs text-muted">0{i + 1}</p>
                 <h3 className="mt-1 font-display text-lg font-semibold tracking-[-0.02em] sm:text-xl">{step.title}</h3>

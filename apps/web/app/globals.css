@@ -92,6 +92,20 @@ a {
   }
 }
 
+/* Hero headline, one word at a time. */
+@keyframes word-in {
+  from {
+    opacity: 0;
+    filter: blur(8px);
+    transform: translate3d(0, 0.25em, 0);
+  }
+  to {
+    opacity: 1;
+    filter: blur(0);
+    transform: none;
+  }
+}
+
 /* Bubbles in the chat replay. */
 @keyframes bubble-in {
   from {
@@ -101,6 +115,38 @@ a {
   to {
     opacity: 1;
     transform: none;
+  }
+}
+
+/* Two words taking turns in the same spot (features: "Replies in Pidgin/English"). */
+@keyframes swap-a {
+  0%,
+  44% {
+    opacity: 1;
+    transform: none;
+  }
+  48%,
+  96% {
+    opacity: 0;
+    transform: translate3d(0, -6px, 0);
+  }
+}
+
+@keyframes swap-b {
+  0%,
+  48% {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0);
+  }
+  52%,
+  92% {
+    opacity: 1;
+    transform: none;
+  }
+  96%,
+  100% {
+    opacity: 0;
+    transform: translate3d(0, 6px, 0);
   }
 }
 

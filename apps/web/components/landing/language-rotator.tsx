@@ -1,19 +1,17 @@
-"use client";
-
-import RotatingText from "@/components/RotatingText";
-
+/**
+ * "Pidgin" and "English" stacked in one grid cell, cross-fading in turn, so a word
+ * is always visible and the pill never changes width.
+ */
 export function LanguageRotator() {
   return (
-    <>
+    <span className="inline-grid rounded-lg bg-accent-wash px-2 align-bottom text-accent-strong">
       <span className="sr-only">Pidgin and English</span>
-      <RotatingText
-        texts={["Pidgin", "English"]}
-        rotationInterval={2200}
-        effect="slide"
-        mainClassName="inline-flex overflow-hidden rounded-lg bg-accent-wash px-2 align-bottom text-accent-strong"
-        staggerDuration={0.02}
-        aria-hidden
-      />
-    </>
+      <span aria-hidden className="col-start-1 row-start-1 animate-[swap-a_4.4s_ease-in-out_infinite]">
+        Pidgin
+      </span>
+      <span aria-hidden className="col-start-1 row-start-1 animate-[swap-b_4.4s_ease-in-out_infinite]">
+        English
+      </span>
+    </span>
   );
 }

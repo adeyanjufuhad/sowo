@@ -1,6 +1,6 @@
 # Brand images
 
-Clay renders generated with Google Flow (Nano Banana 2.1), trimmed to the subject, cleaned, and saved as 800×800 WebP with the page's paper colour (#F5F1EA) baked into the background.
+Clay renders generated with Google Flow (Nano Banana 2.1), cut out with rembg (u2netp) to transparent WebP and trimmed to the subject (800px for the stool poses, 640px for the rest).
 The landing page (`components/landing/clay.tsx`) expects these exact filenames:
 
 | File | What it shows |

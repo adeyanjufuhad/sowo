@@ -2,10 +2,9 @@ import Image from "next/image";
 import { cn } from "@/lib/utils";
 
 /**
- * Clay renders generated in Google Flow (Nano Banana), saved in public/brand.
- * The paper colour (#f5f1ea) is baked into each file, so they sit seamlessly on
- * bg-paper. They're already small WebPs, so Next serves them untouched: its
- * re-encoding would shift the edge colour and show the square.
+ * Clay renders generated in Google Flow (Nano Banana), cut out to transparent
+ * WebP with rembg and saved in public/brand. A soft warm drop shadow grounds
+ * them on any background.
  */
 export const CLAY = {
   mascot: { src: "/brand/mascot.webp", alt: "Sowo, a terracotta clay mascot in an indigo and mustard headtie, sitting on a wooden stool with a phone" },
@@ -46,12 +45,10 @@ export function Clay({
       width={size}
       height={size}
       priority={priority}
+      // Already small WebPs; Next's optimiser here drops their alpha channel.
       unoptimized
       draggable={false}
-      className={cn(
-        "select-none",
-        className,
-      )}
+      className={cn("select-none drop-shadow-[0_18px_22px_rgba(110,62,30,0.18)]", className)}
     />
   );
 }
