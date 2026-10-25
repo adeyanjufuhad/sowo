@@ -49,6 +49,19 @@ export function seedProducts(): Product[] {
   }));
 }
 
+/** Words that appear in product names, e.g. "black", "loafers", "chelsea". */
+const CATALOG_WORDS = new Set(
+  SEEDS.flatMap((s) => s.family.toLowerCase().replace(/'/g, "").split(/\s+/)).flatMap((w) => [w, stem(w)]),
+);
+
+/** Turn a buyer's sentence into a search query, the way the model would: "black loafers size 43". */
+export function extractQuery(text: string): string {
+  const words = text.toLowerCase().replace(/'/g, "").match(/[a-z-]+/g) ?? [];
+  const kept = words.filter((w) => CATALOG_WORDS.has(w) || CATALOG_WORDS.has(stem(w)));
+  const size = text.match(/size\s*(\d{2})/i)?.[1];
+  return [...new Set(kept), ...(size ? [`size ${size}`] : [])].join(" ") || text.trim();
+}
+
 function stem(word: string): string {
   return word.length > 3 && word.endsWith("s") ? word.slice(0, -1) : word;
 }

@@ -11,7 +11,7 @@ import type {
   SearchCatalogCall,
   ToolCall,
 } from "@sowo/shared";
-import { FAMILY_BY_PRODUCT_ID, SIZE_BY_PRODUCT_ID, VENDOR_OWNER } from "./catalog";
+import { FAMILY_BY_PRODUCT_ID, SIZE_BY_PRODUCT_ID, VENDOR_OWNER, extractQuery } from "./catalog";
 import { findDeliveryArea, parseOfferKobo } from "./negotiation";
 
 export type Lang = "en" | "pcm";
@@ -143,7 +143,7 @@ export function respond(
     const query =
       !PRODUCT_WORD.test(text) && memory.family
         ? `${memory.family}${size !== undefined ? ` size ${size}` : ""}`
-        : text;
+        : extractQuery(text);
     const search = tools.searchCatalog(query);
     calls.push(search);
     const hits = search.output.results;

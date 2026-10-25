@@ -1,26 +1,129 @@
 @import "tailwindcss";
 
+/*
+  Sowo design tokens.
+  Warm paper background (matches the clay renders), warm off-black ink,
+  one terracotta accent taken from the mascot. Indigo and mustard come from
+  the mascot's gele and are used sparingly.
+*/
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --paper: #f5f1ea;
+  --paper-deep: #ece6dc;
+  --card: #fffdf9;
+  --ink: #1f1a17;
+  --ink-soft: #4a423c;
+  --muted: #6e655d;
+  --line: #e2dacd;
+  --accent: #e4572e;
+  --accent-strong: #b83c19; /* 5.5:1 on white, 4.9:1 on paper */
+  --accent-wash: #fbe3d9;
+  --indigo: #2c3170;
+  --mustard: #e2a72e;
+  --night: #1b1613;
+  --night-soft: #2a231f;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-paper: var(--paper);
+  --color-paper-deep: var(--paper-deep);
+  --color-card: var(--card);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-wash: var(--accent-wash);
+  --color-indigo: var(--indigo);
+  --color-mustard: var(--mustard);
+  --color-night: var(--night);
+  --color-night-soft: var(--night-soft);
+
+  --font-sans: var(--font-geist), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-bricolage), var(--font-geist), ui-sans-serif, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  --ease-smooth: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+html {
+  -webkit-tap-highlight-color: transparent;
+  scroll-behavior: smooth;
+}
+
+@media (pointer: fine) {
+  html {
+    overscroll-behavior: none;
   }
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--accent-wash);
+  color: var(--ink);
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent-strong);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+button,
+a {
+  touch-action: manipulation;
+}
+
+/* Gentle idle float for the clay objects. */
+@keyframes float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) rotate(var(--tilt, 0deg));
+  }
+  50% {
+    transform: translate3d(0, -10px, 0) rotate(var(--tilt, 0deg));
+  }
+}
+
+/* Bubbles in the chat replay. */
+@keyframes bubble-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes typing {
+  0%,
+  80%,
+  100% {
+    opacity: 0.25;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
