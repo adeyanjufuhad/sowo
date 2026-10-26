@@ -87,3 +87,24 @@ class ProductResponse(BaseModel):
 
 class ListProductsResponse(BaseModel):
     products: list[ProductResponse]
+
+
+class SimulatorMessageRequest(BaseModel):
+    conversationId: str | None = None
+    customerName: str | None = None
+    body: str = Field(min_length=1)
+
+
+class SimulatorMessageResponse(BaseModel):
+    conversation: ConversationResponse
+    messages: list[MessageResponse]
+
+
+class SimulatorPaymentRequest(BaseModel):
+    reference: str = Field(min_length=1)
+    outcome: Literal["SUCCESS", "FAILED"]
+
+
+class SimulatorPaymentResponse(BaseModel):
+    order: OrderResponse
+    messages: list[MessageResponse]

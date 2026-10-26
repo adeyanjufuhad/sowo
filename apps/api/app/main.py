@@ -10,6 +10,8 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.config import get_settings
 from app.db import SessionLocal, init_db
 from app.routes import router
+from app.routes_simulator import router as simulator_router
+from app.routes_webhooks import router as webhooks_router
 from app.services.orders import expire_holds
 
 settings = get_settings()
@@ -43,6 +45,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(router)
+app.include_router(webhooks_router)
+app.include_router(simulator_router)
 
 
 @app.exception_handler(StarletteHTTPException)
