@@ -159,6 +159,7 @@ def create_order_with_hold(
             status=OrderStatus.PENDING,
             delivery_fee_kobo=int(quote["deliveryFeeKobo"]),
             total_kobo=int(quote["totalKobo"]),
+            delivery_area=str(quote["deliveryArea"]),
             expires_at=expires_at,
         )
         session.add(order)
