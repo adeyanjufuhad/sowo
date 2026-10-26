@@ -101,6 +101,7 @@ class Offer(Base):
     product_id: Mapped[str] = mapped_column(ForeignKey("products.id"), nullable=False)
     amount_kobo: Mapped[int] = mapped_column(Integer, nullable=False)
     decision: Mapped[OfferDecision] = mapped_column(Enum(OfferDecision), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class Order(Base):
@@ -129,6 +130,6 @@ class StockHold(Base):
     __tablename__ = "stock_holds"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     product_id: Mapped[str] = mapped_column(ForeignKey("products.id"), nullable=False, index=True)
-    order_id: Mapped[str | None] = mapped_column(ForeignKey("orders.id"), unique=True)
+    order_id: Mapped[str | None] = mapped_column(ForeignKey("orders.id"), index=True)
     quantity: Mapped[int] = mapped_column(Integer, nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
