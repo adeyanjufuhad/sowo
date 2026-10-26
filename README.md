@@ -8,6 +8,8 @@ Built for OSCA Ile-Ife's **OPEN//BUILD 2026** hackathon on the open-weight **Qwe
 
 > The rule the whole design hangs on: **the model only phrases replies and picks tools. The server decides every price, total and stock change.**
 
+[![CI](https://github.com/adeyanjufuhad/sowo/actions/workflows/ci.yml/badge.svg)](https://github.com/adeyanjufuhad/sowo/actions/workflows/ci.yml)
+
 ![Sowo landing page](docs/images/landing.jpg)
 
 ## Contents
@@ -254,6 +256,8 @@ pnpm test         # tests only
 | `apps/api` | The floor-price engine, offer storage and seed data. Run `pytest` and `ruff check` from `apps/api` |
 
 At the time of writing: 6 tests in `packages/shared`, 16 in `apps/web`, and 14 in `apps/api`, all passing.
+
+Every push and pull request also runs these checks in GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)): lint, typecheck, tests and a production build for the web app, and `ruff` and `pytest` for the API.
 
 ## Acknowledgements
 

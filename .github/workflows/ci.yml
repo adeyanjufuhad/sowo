@@ -1,0 +1,81 @@
+name: CI
+
+# Every push and every pull request runs the same checks you can run locally:
+#   web:  pnpm lint, pnpm typecheck, pnpm test, pnpm build
+#   api:  ruff check, pytest
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+# A newer commit on the same branch or PR cancels the run it supersedes.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NEXT_TELEMETRY_DISABLED: "1"
+
+jobs:
+  web:
+    name: Web (lint, typecheck, test, build)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      # The pnpm version comes from "packageManager" in the root package.json.
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Test
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+  api:
+    name: API (ruff, pytest)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: apps/api/pyproject.toml
+
+      # Installing a [dependency-groups] table (--group) needs pip 25.1 or newer.
+      - name: Upgrade pip
+        run: python -m pip install --upgrade pip
+
+      - name: Install
+        run: pip install -e . --group dev
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Test
+        run: pytest
