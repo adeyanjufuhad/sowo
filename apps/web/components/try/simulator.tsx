@@ -215,7 +215,7 @@ export function Simulator() {
                     mine ? "rounded-br-md bg-accent-strong text-white" : "rounded-bl-md bg-card text-ink ring-1 ring-line",
                   )}
                 >
-                  <span className="sr-only">{mine ? "You: " : vendor ? "Ada: " : "Sowo: "}</span>
+                  <span className="sr-only">{mine ? "You: " : vendor ? "" : "Sowo: "}</span>
                   {vendor ? <span className="mb-0.5 block text-xs font-semibold text-accent-strong">Ada</span> : null}
                   {body}
                   <span className={cn("mt-1 flex items-center justify-end gap-1 text-[11px]", mine ? "text-white/70" : "text-muted")}>
