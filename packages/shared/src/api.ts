@@ -130,12 +130,15 @@ export interface SearchCatalogCall {
  * ACCEPT: offer is at or above the floor; agreedPriceKobo is set.
  * COUNTER: offer is below the floor; counterKobo is the server's next price.
  * HOLD: offer is below the floor and the server has no more room; counterKobo is the final price.
+ * REJECT: offer is unrealistically low; no price is returned.
+ * HANDOFF: repeated offers below the floor; the chat goes to the vendor, no price is returned.
  */
-export type OfferDecision = "ACCEPT" | "COUNTER" | "HOLD";
+export type OfferDecision = "ACCEPT" | "COUNTER" | "HOLD" | "REJECT" | "HANDOFF";
 
 export interface EvaluateOfferCall {
   tool: "evaluate_offer";
-  input: { productId: string; offerKobo: Kobo };
+  /** `sku` is optional: it is the readable form of productId, for display. */
+  input: { productId: string; offerKobo: Kobo; sku?: string };
   output: {
     decision: OfferDecision;
     agreedPriceKobo?: Kobo;
@@ -163,7 +166,7 @@ export interface Quote {
 export interface GetQuoteCall {
   tool: "get_quote";
   /** No prices in the input: the server applies the agreed price itself. */
-  input: { items: { productId: string; quantity: number }[]; deliveryArea: string };
+  input: { items: { productId: string; quantity: number; sku?: string }[]; deliveryArea: string };
   output: Quote;
 }
 
