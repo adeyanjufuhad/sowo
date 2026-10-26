@@ -6,7 +6,16 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db import Base, create_database_engine
-from app.models import Conversation, DeliveryZone, Offer, OfferDecision, Order, OrderStatus, Product, Vendor
+from app.models import (
+    Conversation,
+    DeliveryZone,
+    Offer,
+    OfferDecision,
+    Order,
+    OrderStatus,
+    Product,
+    Vendor,
+)
 from app.services.catalog import search_catalog
 from app.services.orders import create_order_with_hold, expire_holds, get_quote, mark_order_paid
 

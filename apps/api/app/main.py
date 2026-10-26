@@ -14,9 +14,8 @@ settings = get_settings()
 async def hold_expiry_worker() -> None:
     while True:
         await asyncio.sleep(30)
-        with SessionLocal() as session:
-            with session.begin():
-                expire_holds(session)
+        with SessionLocal() as session, session.begin():
+            expire_holds(session)
 
 
 @asynccontextmanager

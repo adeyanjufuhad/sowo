@@ -5,7 +5,16 @@ from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.models import DeliveryZone, Offer, OfferDecision, Order, OrderItem, OrderStatus, Product, StockHold
+from app.models import (
+    DeliveryZone,
+    Offer,
+    OfferDecision,
+    Order,
+    OrderItem,
+    OrderStatus,
+    Product,
+    StockHold,
+)
 
 
 def _now() -> datetime:
@@ -128,7 +137,8 @@ def create_order_with_hold(
 ) -> dict[str, Any]:
     """Atomically reserve stock for a pending order using server-calculated quote data."""
     now = _now()
-    with session.begin():
+    transaction = session.begin_nested() if session.in_transaction() else session.begin()
+    with transaction:
         expire_holds(session, now)
         quote = _quote(session, conversation_id, items, delivery_area)
         if "error" in quote:
@@ -175,7 +185,8 @@ def create_order_with_hold(
 
 def mark_order_paid(session: Session, reference: str, amount_kobo: int) -> dict[str, Any]:
     """Idempotently capture a matching payment and consume the associated stock once."""
-    with session.begin():
+    transaction = session.begin_nested() if session.in_transaction() else session.begin()
+    with transaction:
         order = session.scalar(select(Order).where(Order.paystack_reference == reference))
         if order is None:
             return _error("NOT_FOUND", "Order reference was not found")
