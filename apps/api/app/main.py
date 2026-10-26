@@ -9,8 +9,8 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.config import get_settings
 from app.db import SessionLocal, init_db
-from app.services.orders import expire_holds
 from app.routes import router
+from app.services.orders import expire_holds
 
 settings = get_settings()
 

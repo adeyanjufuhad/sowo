@@ -1,5 +1,5 @@
 from datetime import UTC, datetime
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import select
@@ -33,6 +33,7 @@ from app.schemas import (
 from app.services.whatsapp import send_whatsapp_text
 
 router = APIRouter()
+SessionDependency = Annotated[Session, Depends(get_db)]
 
 
 def _iso8601(value: datetime | None) -> str:
@@ -101,7 +102,7 @@ def _not_found(kind: str, identifier: str) -> HTTPException:
 
 
 @router.get("/conversations", response_model=ListConversationsResponse)
-def list_conversations(session: Session = Depends(get_db)) -> ListConversationsResponse:
+def list_conversations(session: SessionDependency) -> ListConversationsResponse:
     conversations = list(session.scalars(select(Conversation).order_by(Conversation.created_at.desc())))
     rendered = [_conversation_response(session, conversation) for conversation in conversations]
     rendered.sort(key=lambda conversation: conversation.lastMessageAt, reverse=True)
@@ -109,7 +110,7 @@ def list_conversations(session: Session = Depends(get_db)) -> ListConversationsR
 
 
 @router.get("/conversations/{conversation_id}/messages", response_model=ListMessagesResponse)
-def list_messages(conversation_id: str, session: Session = Depends(get_db)) -> ListMessagesResponse:
+def list_messages(conversation_id: str, session: SessionDependency) -> ListMessagesResponse:
     conversation = session.get(Conversation, conversation_id)
     if conversation is None:
         raise _not_found("Conversation", conversation_id)
@@ -127,7 +128,7 @@ def list_messages(conversation_id: str, session: Session = Depends(get_db)) -> L
 
 
 @router.post("/conversations/{conversation_id}/pause", response_model=ConversationEnvelope)
-def pause_conversation(conversation_id: str, session: Session = Depends(get_db)) -> ConversationEnvelope:
+def pause_conversation(conversation_id: str, session: SessionDependency) -> ConversationEnvelope:
     with session.begin():
         conversation = session.get(Conversation, conversation_id)
         if conversation is None:
@@ -138,7 +139,7 @@ def pause_conversation(conversation_id: str, session: Session = Depends(get_db))
 
 
 @router.post("/conversations/{conversation_id}/resume", response_model=ConversationEnvelope)
-def resume_conversation(conversation_id: str, session: Session = Depends(get_db)) -> ConversationEnvelope:
+def resume_conversation(conversation_id: str, session: SessionDependency) -> ConversationEnvelope:
     with session.begin():
         conversation = session.get(Conversation, conversation_id)
         if conversation is None:
@@ -154,7 +155,7 @@ def resume_conversation(conversation_id: str, session: Session = Depends(get_db)
     response_model_exclude_none=True,
 )
 def send_vendor_reply(
-    conversation_id: str, payload: VendorReplyRequest, session: Session = Depends(get_db)
+    conversation_id: str, payload: VendorReplyRequest, session: SessionDependency
 ) -> VendorReplyResponse:
     if not payload.body.strip():
         raise HTTPException(status_code=400, detail="body must not be empty")
@@ -216,13 +217,13 @@ def _order_response(session: Session, order: Order) -> OrderResponse:
 
 
 @router.get("/orders", response_model=ListOrdersResponse, response_model_exclude_none=True)
-def list_orders(session: Session = Depends(get_db)) -> ListOrdersResponse:
+def list_orders(session: SessionDependency) -> ListOrdersResponse:
     orders = list(session.scalars(select(Order).order_by(Order.created_at.desc(), Order.id.desc())))
     return ListOrdersResponse(orders=[_order_response(session, order) for order in orders])
 
 
 @router.get("/products", response_model=ListProductsResponse)
-def list_products(session: Session = Depends(get_db)) -> ListProductsResponse:
+def list_products(session: SessionDependency) -> ListProductsResponse:
     products = list(session.scalars(select(Product).order_by(Product.name.asc())))
     return ListProductsResponse(
         products=[
