@@ -100,6 +100,22 @@ class Message(Base):
     conversation: Mapped[Conversation] = relationship(back_populates="messages")
 
 
+def new_quote_id() -> str:
+    return f"q_{uuid.uuid4().hex[:8]}"
+
+
+class Quote(Base):
+    """A priced basket the buyer was shown. request_payment turns one into an order."""
+
+    __tablename__ = "quotes"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_quote_id)
+    conversation_id: Mapped[str] = mapped_column(ForeignKey("conversations.id"), nullable=False, index=True)
+    items: Mapped[list[dict[str, object]]] = mapped_column(JSON, nullable=False)
+    delivery_area: Mapped[str] = mapped_column(String(100), nullable=False)
+    total_kobo: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=func.now())
+
+
 class Offer(Base):
     __tablename__ = "offers"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)

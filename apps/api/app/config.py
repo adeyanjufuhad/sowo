@@ -22,6 +22,24 @@ class Settings(BaseSettings):
     public_base_url: str = "http://localhost:8000"
     reply_delay_seconds: int = Field(default=3, ge=0)
     stock_hold_minutes: int = Field(default=15, ge=1)
+
+    # The /simulator/* endpoints power the demo page. Turn them off on a deployment that serves real buyers.
+    simulator_enabled: bool = True
+
+    # Qwen3 through Ollama
+    ollama_timeout_seconds: float = Field(default=120.0, gt=0)
+    ollama_temperature: float = Field(default=0.3, ge=0, le=2)
+    agent_max_tool_rounds: int = Field(default=6, ge=1, le=12)
+    agent_history_messages: int = Field(default=24, ge=2)
+
+    # WhatsApp Cloud API (Graph API version is configurable because Meta retires old ones)
+    whatsapp_graph_version: str = "v23.0"
+    vendor_alert_phone: str = ""
+
+    # Paystack. Buyers on WhatsApp have no email, so one is generated as <phone>@<domain>.
+    paystack_base_url: str = "https://api.paystack.co"
+    paystack_callback_url: str = ""
+    paystack_customer_email_domain: str = "customers.sowo.invalid"
     cors_origins: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: ["http://localhost:3000"]
     )
