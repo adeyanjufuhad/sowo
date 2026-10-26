@@ -58,6 +58,7 @@ class Product(Base):
     price_kobo: Mapped[int] = mapped_column(Integer, nullable=False)
     floor_price_kobo: Mapped[int] = mapped_column(Integer, nullable=False)
     stock: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    image_url: Mapped[str] = mapped_column(String(500), nullable=False, default="")
     vendor: Mapped[Vendor] = relationship(back_populates="products")
 
 
@@ -74,6 +75,7 @@ class Conversation(Base):
     __tablename__ = "conversations"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     customer_phone: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    customer_name: Mapped[str] = mapped_column(String(120), nullable=False, default="")
     status: Mapped[ConversationStatus] = mapped_column(Enum(ConversationStatus), nullable=False, default=ConversationStatus.ACTIVE)
     ai_paused: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     greeted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
@@ -112,6 +114,8 @@ class Order(Base):
     paystack_reference: Mapped[str | None] = mapped_column(String(128), unique=True)
     delivery_fee_kobo: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     total_kobo: Mapped[int] = mapped_column(Integer, nullable=False)
+    delivery_area: Mapped[str | None] = mapped_column(String(100))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     items: Mapped[list["OrderItem"]] = relationship(back_populates="order")
 
