@@ -35,6 +35,11 @@ class OrderStatus(str, enum.Enum):
     CANCELLED = "CANCELLED"
 
 
+class PaymentMethod(str, enum.Enum):
+    PAYSTACK = "PAYSTACK"
+    MANUAL = "MANUAL"
+
+
 class OfferDecision(str, enum.Enum):
     ACCEPT = "ACCEPT"
     COUNTER = "COUNTER"
@@ -137,6 +142,11 @@ class Order(Base):
     delivery_area: Mapped[str | None] = mapped_column(String(100))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=func.now())
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # MANUAL orders are paid by bank transfer and confirmed by the vendor, not by a Paystack webhook.
+    payment_method: Mapped[PaymentMethod] = mapped_column(
+        Enum(PaymentMethod), nullable=False, default=PaymentMethod.PAYSTACK, server_default=PaymentMethod.PAYSTACK.name
+    )
+    receipt_reported_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     items: Mapped[list["OrderItem"]] = relationship(back_populates="order")
 
 

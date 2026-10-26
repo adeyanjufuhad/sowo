@@ -14,13 +14,15 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.db import get_db
 from app.deps import ChatModelDependency
-from app.models import Conversation, MessageRole, Order, OrderStatus
+from app.models import Conversation, MessageRole, Order, OrderStatus, PaymentMethod
 from app.routes import _conversation_response, _message_response, _order_response
 from app.schemas import (
     SimulatorMessageRequest,
     SimulatorMessageResponse,
     SimulatorPaymentRequest,
     SimulatorPaymentResponse,
+    SimulatorReceiptRequest,
+    SimulatorReceiptResponse,
 )
 from app.services import flow, payments
 from app.services.orders import mark_order_paid
@@ -74,6 +76,8 @@ def simulate_payment(payload: SimulatorPaymentRequest, session: SessionDependenc
         raise HTTPException(status_code=404, detail=f"Payment {payload.reference} not found")
     if order.status != OrderStatus.PENDING:
         raise HTTPException(status_code=409, detail=f"Order is already {order.status.value}")
+    if order.payment_method == PaymentMethod.MANUAL:
+        raise HTTPException(status_code=409, detail="Bank-transfer orders are confirmed by Ada in the dashboard")
 
     if payload.outcome == "SUCCESS":
         result = mark_order_paid(session, payload.reference, order.total_kobo)
@@ -90,4 +94,21 @@ def simulate_payment(payload: SimulatorPaymentRequest, session: SessionDependenc
     return SimulatorPaymentResponse(
         order=_order_response(session, order),
         messages=[_message_response(message)] if message else [],
+    )
+
+
+@router.post("/simulator/receipts", response_model=SimulatorReceiptResponse, response_model_exclude_none=True)
+def send_simulated_receipt(payload: SimulatorReceiptRequest, session: SessionDependency) -> SimulatorReceiptResponse:
+    """The buyer says they've made the bank transfer. Ada still has to confirm it in the dashboard."""
+    order = session.scalar(select(Order).where(Order.paystack_reference == payload.reference))
+    conversation = session.get(Conversation, order.conversation_id) if order else None
+    if order is None or conversation is None or not conversation.is_simulator:
+        raise HTTPException(status_code=404, detail=f"Order {payload.reference} not found")
+    if order.payment_method != PaymentMethod.MANUAL or order.status != OrderStatus.PENDING:
+        raise HTTPException(status_code=409, detail="That order is not waiting for a bank transfer")
+
+    messages = flow.submit_simulated_receipt(session, conversation, order, get_settings())
+    session.refresh(order)
+    return SimulatorReceiptResponse(
+        order=_order_response(session, order), messages=[_message_response(m) for m in messages]
     )

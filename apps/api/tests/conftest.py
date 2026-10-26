@@ -119,3 +119,18 @@ def env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Env]:
 def client(env: Env) -> Iterator[TestClient]:
     with TestClient(app) as test_client:
         yield test_client
+
+
+@pytest.fixture
+def manual(env: Env, monkeypatch: pytest.MonkeyPatch) -> Env:
+    """Buyers pay by bank transfer to Ada's account; Ada confirms it in the dashboard."""
+    for name, value in {
+        "PAYMENT_MODE": "manual",
+        "VENDOR_BANK_NAME": "GTBank",
+        "VENDOR_ACCOUNT_NAME": "Ada Okafor",
+        "VENDOR_ACCOUNT_NUMBER": "0123456789",
+        "MANUAL_PAYMENT_HOLD_MINUTES": "180",
+    }.items():
+        monkeypatch.setenv(name, value)
+    get_settings.cache_clear()
+    return env

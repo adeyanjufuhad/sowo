@@ -1,5 +1,5 @@
 from functools import lru_cache
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
@@ -35,6 +35,14 @@ class Settings(BaseSettings):
     # WhatsApp Cloud API (Graph API version is configurable because Meta retires old ones)
     whatsapp_graph_version: str = "v23.0"
     vendor_alert_phone: str = ""
+
+    # How buyers pay. "paystack": a Paystack link, confirmed by Paystack's signed webhook. "manual": Ada's own
+    # bank account; the buyer sends a receipt and Ada confirms in the dashboard once she sees the money.
+    payment_mode: Literal["paystack", "manual"] = "paystack"
+    vendor_bank_name: str = ""
+    vendor_account_name: str = ""
+    vendor_account_number: str = ""
+    manual_payment_hold_minutes: int = Field(default=180, ge=1)
 
     # Paystack. Buyers on WhatsApp have no email, so one is generated as <phone>@<domain>.
     paystack_base_url: str = "https://api.paystack.co"

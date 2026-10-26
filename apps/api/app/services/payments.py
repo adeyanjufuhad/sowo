@@ -1,9 +1,22 @@
 """What happens around an order: releasing held stock, and the messages a payment produces."""
 
-from sqlalchemy import delete, select, update
+import re
+from datetime import timedelta
+
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
-from app.models import Conversation, Order, OrderItem, OrderStatus, Product, StockHold
+from app.config import Settings
+from app.models import (
+    Conversation,
+    Order,
+    OrderItem,
+    OrderStatus,
+    PaymentMethod,
+    Product,
+    StockHold,
+    utc_now,
+)
 from app.services.money import format_naira
 
 
@@ -34,6 +47,16 @@ def receipt_text(order: Order, summary: str, *, pidgin: bool) -> str:
     total = format_naira(order.total_kobo)
     area = order.delivery_area or "you"
     reference = order.paystack_reference or order.id
+    if order.payment_method == PaymentMethod.MANUAL:  # Ada confirmed it herself
+        if pidgin:
+            return (
+                f"Payment confirm ✅ Ada don see your {total} transfer for order {reference}.\n"
+                f"She don dey pack your {summary}. E go reach {area}. Thank you!"
+            )
+        return (
+            f"Payment confirmed ✅ Ada has confirmed your transfer of {total} for order {reference}.\n"
+            f"She is packing your {summary} now and it will be delivered to {area}. Thank you!"
+        )
     if pidgin:
         return (
             f"Payment confirm ✅ We don receive {total} for order {reference}.\n"
@@ -60,3 +83,98 @@ def pack_alert_text(order: Order, summary: str, conversation: Conversation) -> s
         f"Paid {format_naira(order.total_kobo)} ({reference}). Deliver to {order.delivery_area or 'the buyer'}.\n"
         f"Buyer: {buyer}, {conversation.customer_phone}."
     )
+
+
+# -- manual (bank transfer) payments ---------------------------------------------------------------------
+
+RECEIPT_RECEIVED_REPLY = (
+    "Thanks! I've sent your receipt to Ada. She'll confirm as soon as she sees the money in her account, "
+    "and I'll tell you here."
+)
+
+
+def vendor_bank(settings: Settings) -> dict[str, str] | None:
+    """Ada's account for bank transfers, or None if it isn't (properly) set up."""
+    bank = {
+        "bankName": settings.vendor_bank_name.strip(),
+        "accountName": settings.vendor_account_name.strip(),
+        "accountNumber": re.sub(r"\s", "", settings.vendor_account_number),
+    }
+    if not bank["bankName"] or not bank["accountName"] or not re.fullmatch(r"\d{10}", bank["accountNumber"]):
+        return None
+    return bank
+
+
+def _extend_hold(session: Session, order_id: str, minutes: int) -> None:
+    expires = utc_now() + timedelta(minutes=minutes)
+    session.execute(update(Order).where(Order.id == order_id).values(expires_at=expires))
+    session.execute(update(StockHold).where(StockHold.order_id == order_id).values(expires_at=expires))
+
+
+def start_manual_payment(session: Session, order_id: str, hold_minutes: int) -> None:
+    """Turn a fresh order into a bank-transfer one. People take hours to pay a transfer, so hold the stock longer."""
+    session.execute(update(Order).where(Order.id == order_id).values(payment_method=PaymentMethod.MANUAL))
+    _extend_hold(session, order_id, hold_minutes)
+
+
+def open_manual_order(session: Session, conversation_id: str) -> Order | None:
+    """The buyer's latest bank-transfer order that is still waiting to be paid."""
+    return session.scalar(
+        select(Order)
+        .where(
+            Order.conversation_id == conversation_id,
+            Order.payment_method == PaymentMethod.MANUAL,
+            Order.status == OrderStatus.PENDING,
+        )
+        .order_by(Order.created_at.desc())
+    )
+
+
+def report_receipt(session: Session, order: Order, hold_minutes: int) -> bool:
+    """The buyer says they've transferred. Returns True the first time, so Ada is only alerted once.
+
+    This never marks anything paid: only Ada does that, after she sees the money in her own account.
+    """
+    first = order.receipt_reported_at is None
+    if first:
+        order.receipt_reported_at = utc_now()
+    _extend_hold(session, order.id, hold_minutes)  # don't let the stock go back on sale while Ada checks
+    return first
+
+
+def receipt_alert_text(order: Order, conversation: Conversation) -> str:
+    reference = order.paystack_reference or order.id
+    buyer = conversation.customer_name or conversation.customer_phone
+    return (
+        f"{buyer} says they've paid {format_naira(order.total_kobo)} for order {reference}.\n"
+        f"Check your bank app for the credit (narration {reference}). "
+        "If it's there, tap Mark paid in the dashboard."
+    )
+
+
+def revive_expired_order(session: Session, order: Order) -> bool:
+    """Ada has the money but the hold lapsed first: take the stock back if it's still there."""
+    if order.status != OrderStatus.EXPIRED:
+        return False
+    now = utc_now()
+    items = list(session.scalars(select(OrderItem).where(OrderItem.order_id == order.id)))
+    for item in items:
+        product = session.get(Product, item.product_id)
+        held = session.scalar(
+            select(func.coalesce(func.sum(StockHold.quantity), 0))
+            .join(Order, Order.id == StockHold.order_id)
+            .where(
+                StockHold.product_id == item.product_id,
+                Order.status == OrderStatus.PENDING,
+                StockHold.expires_at > now,
+            )
+        )
+        if product is None or product.stock - int(held or 0) < item.quantity:
+            return False
+    expires = now + timedelta(minutes=5)
+    order.status = OrderStatus.PENDING
+    order.expires_at = expires
+    for item in items:
+        session.add(StockHold(product_id=item.product_id, order_id=order.id, quantity=item.quantity, expires_at=expires))
+    session.flush()
+    return True

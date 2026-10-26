@@ -69,6 +69,10 @@ class OrderResponse(BaseModel):
     conversationId: str | None = None
     deliveryArea: str | None = None
     paymentReference: str | None = None
+    # Bank-transfer orders are confirmed by the vendor, not by Paystack; receiptReportedAt is when the buyer
+    # said they had paid.
+    paymentMethod: Literal["PAYSTACK", "MANUAL"] | None = None
+    receiptReportedAt: str | None = None
 
 
 class ListOrdersResponse(BaseModel):
@@ -108,3 +112,17 @@ class SimulatorPaymentRequest(BaseModel):
 class SimulatorPaymentResponse(BaseModel):
     order: OrderResponse
     messages: list[MessageResponse]
+
+
+class SimulatorReceiptRequest(BaseModel):
+    reference: str = Field(min_length=1)
+
+
+class SimulatorReceiptResponse(BaseModel):
+    order: OrderResponse
+    messages: list[MessageResponse]
+
+
+class MarkPaidResponse(BaseModel):
+    order: OrderResponse
+    message: MessageResponse | None = None

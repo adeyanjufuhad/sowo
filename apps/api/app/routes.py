@@ -213,6 +213,8 @@ def _order_response(session: Session, order: Order) -> OrderResponse:
         conversationId=order.conversation_id,
         deliveryArea=order.delivery_area,
         paymentReference=order.paystack_reference,
+        paymentMethod=order.payment_method.value,
+        receiptReportedAt=_iso8601(order.receipt_reported_at) if order.receipt_reported_at else None,
     )
 
 

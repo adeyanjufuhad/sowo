@@ -22,6 +22,7 @@ from app.models import (
     Message,
     MessageRole,
     Order,
+    PaymentMethod,
     utc_now,
 )
 from app.services import guard, payments, whatsapp
@@ -36,11 +37,13 @@ logger = logging.getLogger(__name__)
 _locks: dict[str, threading.Lock] = {}
 _locks_guard = threading.Lock()
 
+RECEIPT_KINDS = {"image", "document"}
 TROUBLE_REPLY = "Sorry, something went wrong on my side. I've told Ada and she'll reply you here shortly."
 NON_TEXT_REPLY = (
     "I can only read text messages for now, so please type what you need. "
     "There's no need to send payment screenshots: we confirm payments through Paystack."
 )
+NON_TEXT_REPLY_MANUAL = "I can only read text messages for now, so please type what you need."
 
 
 def conversation_lock(conversation_id: str) -> threading.Lock:
@@ -152,7 +155,34 @@ def answer_buyer(
         whatsapp.send_whatsapp_text(conversation.customer_phone, message.text)
         if reply.escalation:
             notify_vendor(f"{_buyer_name(conversation)} needs you: {reply.escalation}.")
+        if reply.receipt_order_id:  # the model passed on "I've paid": tell Ada to check her account
+            order = session.get(Order, reply.receipt_order_id)
+            if order is not None:
+                notify_vendor(payments.receipt_alert_text(order, conversation))
     return message
+
+
+def register_receipt(session: Session, conversation: Conversation, order: Order, settings: Settings) -> bool:
+    """The buyer sent a receipt for a bank-transfer order. Flag it and, the first time, alert Ada.
+
+    Nothing is marked paid here. Only Ada can do that, once she sees the money in her own account.
+    """
+    first = payments.report_receipt(session, order, settings.manual_payment_hold_minutes)
+    session.commit()
+    if first and not conversation.is_simulator:
+        notify_vendor(payments.receipt_alert_text(order, conversation))
+    return first
+
+
+def submit_simulated_receipt(
+    session: Session, conversation: Conversation, order: Order, settings: Settings
+) -> list[Message]:
+    """The /try page's 'I've sent the transfer' button: the same thing a receipt picture does on WhatsApp."""
+    messages = [add_message(session, conversation, MessageRole.BUYER, "I've sent the transfer. Here is my receipt.")]
+    register_receipt(session, conversation, order, settings)
+    if should_reply(conversation):
+        messages.append(add_message(session, conversation, MessageRole.AI, payments.RECEIPT_RECEIVED_REPLY))
+    return messages
 
 
 def handle_inbound(session: Session, inbound: InboundMessage, model: ChatModel, settings: Settings) -> None:
@@ -168,8 +198,18 @@ def handle_inbound(session: Session, inbound: InboundMessage, model: ChatModel, 
     whatsapp.mark_read(inbound.id)
 
     if inbound.kind != "text":
+        # A picture or document while a bank transfer is waiting is the buyer's receipt.
+        order = payments.open_manual_order(session, conversation.id) if inbound.kind in RECEIPT_KINDS else None
+        if order is not None:
+            register_receipt(session, conversation, order, settings)
         if should_reply(conversation):
-            reply = add_message(session, conversation, MessageRole.AI, NON_TEXT_REPLY)
+            if order is not None:
+                reply_text = payments.RECEIPT_RECEIVED_REPLY
+            elif settings.payment_mode == "manual":
+                reply_text = NON_TEXT_REPLY_MANUAL
+            else:
+                reply_text = NON_TEXT_REPLY
+            reply = add_message(session, conversation, MessageRole.AI, reply_text)
             whatsapp.send_whatsapp_text(conversation.customer_phone, reply.text)
         return
     if settings.whatsapp_echo_mode:  # for checking the webhook wiring without a model
@@ -211,7 +251,8 @@ def finish_paid_order(session: Session, order_id: str) -> Message | None:
     )
     if not conversation.is_simulator:
         whatsapp.send_whatsapp_text(conversation.customer_phone, receipt.text)
-        notify_vendor(payments.pack_alert_text(order, summary, conversation))
+        if order.payment_method != PaymentMethod.MANUAL:  # Ada just tapped Mark paid; she knows
+            notify_vendor(payments.pack_alert_text(order, summary, conversation))
     return receipt
 
 
