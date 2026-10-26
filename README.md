@@ -100,10 +100,13 @@ cd apps/api
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -e . --group dev
 cp .env.example .env                                  # then fill in your own values
+python -m app.seed_demo                               # Ada's Footwear: products, delivery zones, a few chats
 uvicorn app.main:app --reload                         # http://localhost:8000/health
 ```
 
-> **Status:** at the time of writing the service starts and serves `/health`, and the database models, seed data and floor-price engine are in place and tested. The REST endpoints from the API contract, the Qwen3 tool loop, the WhatsApp webhook and Paystack are still being built, so point `NEXT_PUBLIC_API_URL` at it only once those land.
+Set `NEXT_PUBLIC_API_URL=http://localhost:8000` in `apps/web/.env.local` and the web app talks to it instead of running in demo mode. To try Qwen3 on its own, `python -m app.chat_cli` is a terminal chat with the same agent and rules. Connecting a WhatsApp number and Paystack is covered in [`apps/api/README.md`](apps/api/README.md).
+
+> **Status:** the REST endpoints, the Qwen3 tool loop, the WhatsApp webhook, Paystack and the simulator endpoints are all in place and tested, and the web app has been run end to end against the API. What has *not* been run yet is a live Qwen3, a live WhatsApp number or a live Paystack account: those are exercised with stand-ins, so expect to tune the prompt on the first real run.
 
 ## Architecture
 
@@ -189,7 +192,7 @@ docs/
 | API contract (types and written spec) | Done |
 | In-browser and HTTP mock backend | Done |
 | Backend: database models, seed data, floor-price engine, offer storage | Done, unit tested |
-| Backend: contract endpoints, Qwen3 tool loop, WhatsApp webhook, Paystack | In progress |
+| Backend: contract endpoints, Qwen3 tool loop, WhatsApp webhook, Paystack, simulator | Done and tested with stand-ins; not yet run against a live Qwen3, Meta or Paystack account |
 
 ## Model (Qwen3)
 
@@ -255,7 +258,7 @@ pnpm test         # tests only
 | `apps/web/lib/mock` | The haggling rules (the ₦35,000 → ₦43,000 → ₦41,000 sale, stepping down, never below the floor, never above the list price), offer and area parsing, the full sale end to end including stock reservation and the receipt, hand-off to the vendor, message ordering, and a check that the floor price never appears in anything buyers or the model can see |
 | `apps/api` | The floor-price engine, offer storage and seed data. Run `pytest` and `ruff check` from `apps/api` |
 
-At the time of writing: 6 tests in `packages/shared`, 16 in `apps/web`, and 14 in `apps/api`, all passing.
+At the time of writing: 6 tests in `packages/shared`, 16 in `apps/web`, and 141 in `apps/api`, all passing.
 
 Every push and pull request also runs these checks in GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)): lint, typecheck, tests and a production build for the web app, and `ruff` and `pytest` for the API.
 
