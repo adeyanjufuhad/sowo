@@ -11,7 +11,9 @@ def main() -> None:
     with SessionLocal() as session:
         seed_data(session)
         product = session.scalar(select(Product).where(Product.sku == "LOAF-BLK-43"))
+        brown_product = session.scalar(select(Product).where(Product.sku == "LOAF-BRN-42"))
         assert product is not None
+        assert brown_product is not None
         conversation = session.scalar(
             select(Conversation).where(Conversation.customer_phone == "2348000000001")
         )
@@ -54,6 +56,23 @@ def main() -> None:
                     ),
                 ]
             )
+        second_conversation = session.scalar(
+            select(Conversation).where(Conversation.customer_phone == "2348000000002")
+        )
+        if second_conversation is None:
+            second_conversation = Conversation(
+                customer_phone="2348000000002",
+                customer_name="Ibrahim Musa",
+            )
+            session.add(second_conversation)
+            session.flush()
+            session.add(
+                Message(
+                    conversation_id=second_conversation.id,
+                    role=MessageRole.BUYER,
+                    text="Please send the brown loafers to Yaba.",
+                )
+            )
         order = session.scalar(select(Order).where(Order.paystack_reference == "SW-DEMO-LOAFERS"))
         if order is None:
             order = Order(
@@ -66,6 +85,8 @@ def main() -> None:
             )
             session.add(order)
             session.flush()
+        order_item = session.scalar(select(OrderItem).where(OrderItem.order_id == order.id))
+        if order_item is None:
             session.add(
                 OrderItem(
                     order_id=order.id,
@@ -74,6 +95,34 @@ def main() -> None:
                     unit_price_kobo=4500000,
                 )
             )
+        else:
+            order_item.product_id = product.id
+            order_item.unit_price_kobo = 4500000
+        second_order = session.scalar(select(Order).where(Order.paystack_reference == "SW-DEMO-BROWN"))
+        if second_order is None:
+            second_order = Order(
+                conversation_id=second_conversation.id,
+                status=OrderStatus.PAID,
+                paystack_reference="SW-DEMO-BROWN",
+                delivery_fee_kobo=200000,
+                total_kobo=4500000,
+                delivery_area="Yaba",
+            )
+            session.add(second_order)
+            session.flush()
+        second_order_item = session.scalar(select(OrderItem).where(OrderItem.order_id == second_order.id))
+        if second_order_item is None:
+            session.add(
+                OrderItem(
+                    order_id=second_order.id,
+                    product_id=brown_product.id,
+                    quantity=1,
+                    unit_price_kobo=4300000,
+                )
+            )
+        else:
+            second_order_item.product_id = brown_product.id
+            second_order_item.unit_price_kobo = 4300000
         session.commit()
 
 
