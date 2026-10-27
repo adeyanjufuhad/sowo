@@ -1,0 +1,14 @@
+.env
+.env.*
+sowo.db*
+*.db
+*.db-shm
+*.db-wal
+__pycache__
+*.pyc
+*.egg-info
+tests/
+.venv
+.pytest_cache
+.ruff_cache
+.git

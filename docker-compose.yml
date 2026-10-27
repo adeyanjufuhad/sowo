@@ -1,0 +1,42 @@
+services:
+  api:
+    build:
+      context: apps/api
+    env_file:
+      - apps/api/.env
+    environment:
+      OLLAMA_BASE_URL: http://ollama:11434
+    ports:
+      - "8000:8000"
+
+  ollama:
+    image: ollama/ollama
+    profiles:
+      - ai
+    volumes:
+      - ollama_models:/root/.ollama
+    ports:
+      - "11434:11434"
+
+  # To use it, set DATABASE_URL=postgresql+psycopg://sowo:sowo@db:5432/sowo in apps/api/.env and run `docker compose --profile local-db up`.
+  db:
+    image: postgres:16-alpine
+    profiles:
+      - local-db
+    environment:
+      POSTGRES_USER: sowo
+      POSTGRES_PASSWORD: sowo
+      POSTGRES_DB: sowo
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sowo -d sowo"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  ollama_models:
+  postgres_data:
