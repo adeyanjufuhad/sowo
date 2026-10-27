@@ -172,6 +172,13 @@ def manual(env: Env, monkeypatch: pytest.MonkeyPatch) -> Env:
 
 
 @pytest.fixture(autouse=True)
+def ignore_the_developers_dotenv(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Never read a real .env during tests: it holds a developer's keys and their own demo settings."""
+    monkeypatch.setitem(Settings.model_config, "env_file", None)
+    get_settings.cache_clear()
+
+
+@pytest.fixture(autouse=True)
 def fresh_rate_limits() -> Iterator[None]:
     """The limiter counts in memory, so one test's requests must not use up the next test's allowance."""
     from app.ratelimit import limiter
