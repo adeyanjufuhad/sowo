@@ -26,7 +26,7 @@ from app.schemas import (
 )
 from app.services import flow, payments
 from app.services.orders import mark_order_paid
-from app.services.vendors import default_vendor
+from app.services.vendors import demo_vendor
 
 SessionDependency = Annotated[Session, Depends(get_db)]
 
@@ -51,9 +51,9 @@ def send_simulator_message(
         if conversation is None or not conversation.is_simulator:
             raise HTTPException(status_code=404, detail=f"Conversation {payload.conversationId} not found")
     else:
-        vendor = default_vendor(session)
+        vendor = demo_vendor(session, get_settings())
         if vendor is None:
-            raise HTTPException(status_code=409, detail="No vendor has signed up yet")
+            raise HTTPException(status_code=409, detail="The demo shop does not exist; run python -m app.seed_demo")
         conversation = Conversation(
             vendor_id=vendor.id,
             customer_phone=f"sim-{uuid4().hex[:10]}",
@@ -82,7 +82,7 @@ def simulate_payment(payload: SimulatorPaymentRequest, session: SessionDependenc
     if order.status != OrderStatus.PENDING:
         raise HTTPException(status_code=409, detail=f"Order is already {order.status.value}")
     if order.payment_method == PaymentMethod.MANUAL:
-        raise HTTPException(status_code=409, detail="Bank-transfer orders are confirmed by Ada in the dashboard")
+        raise HTTPException(status_code=409, detail="Bank-transfer orders are confirmed by the vendor in the dashboard")
 
     if payload.outcome == "SUCCESS":
         result = mark_order_paid(session, payload.reference, order.total_kobo)
@@ -104,7 +104,7 @@ def simulate_payment(payload: SimulatorPaymentRequest, session: SessionDependenc
 
 @router.post("/simulator/receipts", response_model=SimulatorReceiptResponse, response_model_exclude_none=True)
 def send_simulated_receipt(payload: SimulatorReceiptRequest, session: SessionDependency) -> SimulatorReceiptResponse:
-    """The buyer says they've made the bank transfer. Ada still has to confirm it in the dashboard."""
+    """The buyer says they've made the bank transfer. The vendor still has to confirm it in the dashboard."""
     order = session.scalar(select(Order).where(Order.paystack_reference == payload.reference))
     conversation = session.get(Conversation, order.conversation_id) if order else None
     if order is None or conversation is None or not conversation.is_simulator:

@@ -31,7 +31,7 @@ from app.services.agent import AgentReply, run_agent
 from app.services.money import format_naira
 from app.services.ollama import ChatModel, OllamaError
 from app.services.orders import mark_order_paid
-from app.services.vendors import default_vendor
+from app.services.vendors import owner_name, vendor_for_number
 from app.services.whatsapp import InboundMessage
 
 logger = logging.getLogger(__name__)
@@ -40,7 +40,7 @@ _locks: dict[str, threading.Lock] = {}
 _locks_guard = threading.Lock()
 
 RECEIPT_KINDS = {"image", "document"}
-TROUBLE_REPLY = "Sorry, something went wrong on my side. I've told Ada and she'll reply you here shortly."
+TROUBLE_REPLY = "Sorry, something went wrong on my side. I've told the owner and they'll reply you here shortly."
 NON_TEXT_REPLY = (
     "I can only read text messages for now, so please type what you need. "
     "There's no need to send payment screenshots: we confirm payments through Paystack."
@@ -109,12 +109,23 @@ def should_reply(conversation: Conversation) -> bool:
     return conversation.status == ConversationStatus.ACTIVE and not conversation.ai_paused
 
 
-def notify_vendor(text: str) -> None:
-    phone = get_settings().vendor_alert_phone
-    if phone:
-        whatsapp.send_whatsapp_text(phone, text)
+def vendor_of(session: Session, conversation: Conversation) -> Vendor:
+    vendor = session.get(Vendor, conversation.vendor_id)
+    assert vendor is not None  # conversations.vendor_id is a NOT NULL foreign key
+    return vendor
+
+
+def send_to_buyer(vendor: Vendor, conversation: Conversation, text: str) -> bool:
+    """A WhatsApp message to the buyer, sent from the number the vendor's customers know."""
+    return whatsapp.send_whatsapp_text(vendor.whatsapp_phone_number_id, conversation.customer_phone, text)
+
+
+def notify_vendor(vendor: Vendor, text: str) -> None:
+    """An alert to the vendor's own phone, sent from their business number."""
+    if vendor.alert_phone:
+        whatsapp.send_whatsapp_text(vendor.whatsapp_phone_number_id, vendor.alert_phone, text)
     else:
-        logger.info("Vendor alert (no VENDOR_ALERT_PHONE set): %s", text.splitlines()[0])
+        logger.info("Vendor alert for %s (no alert phone set): %s", vendor.id, text.splitlines()[0])
 
 
 def _buyer_name(conversation: Conversation) -> str:
@@ -139,7 +150,7 @@ def answer_buyer(
 ) -> Message | None:
     """Run the agent on the buyer's latest message and save (and, for WhatsApp, send) its reply."""
     with conversation_lock(conversation.id):
-        session.refresh(conversation)  # Ada may have paused the chat while the buyer was typing
+        session.refresh(conversation)  # the vendor may have paused the chat while the buyer was typing
         if not should_reply(conversation):
             return None
         try:
@@ -158,25 +169,26 @@ def answer_buyer(
     if deliver:
         if settings.reply_delay_seconds:
             time.sleep(settings.reply_delay_seconds)  # a beat of typing, so it doesn't feel like a machine
-        whatsapp.send_whatsapp_text(conversation.customer_phone, message.text)
+        vendor = vendor_of(session, conversation)
+        send_to_buyer(vendor, conversation, message.text)
         if reply.escalation:
-            notify_vendor(f"{_buyer_name(conversation)} needs you: {reply.escalation}.")
-        if reply.receipt_order_id:  # the model passed on "I've paid": tell Ada to check her account
+            notify_vendor(vendor, f"{_buyer_name(conversation)} needs you: {reply.escalation}.")
+        if reply.receipt_order_id:  # the model passed on "I've paid": tell the vendor to check their account
             order = session.get(Order, reply.receipt_order_id)
             if order is not None:
-                notify_vendor(payments.receipt_alert_text(order, conversation))
+                notify_vendor(vendor, payments.receipt_alert_text(order, conversation))
     return message
 
 
 def register_receipt(session: Session, conversation: Conversation, order: Order, settings: Settings) -> bool:
-    """The buyer sent a receipt for a bank-transfer order. Flag it and, the first time, alert Ada.
+    """The buyer sent a receipt for a bank-transfer order. Flag it and, the first time, alert the vendor.
 
-    Nothing is marked paid here. Only Ada can do that, once she sees the money in her own account.
+    Nothing is marked paid here. Only the vendor can do that, once they see the money in their own account.
     """
     first = payments.report_receipt(session, order, settings.manual_payment_hold_minutes)
     session.commit()
     if first and not conversation.is_simulator:
-        notify_vendor(payments.receipt_alert_text(order, conversation))
+        notify_vendor(vendor_of(session, conversation), payments.receipt_alert_text(order, conversation))
     return first
 
 
@@ -193,9 +205,10 @@ def submit_simulated_receipt(
 
 def handle_inbound(session: Session, inbound: InboundMessage, model: ChatModel, settings: Settings) -> None:
     """One WhatsApp message from a buyer."""
-    vendor = default_vendor(session)
+    vendor = vendor_for_number(session, inbound.phone_number_id)
     if vendor is None:
-        logger.warning("A WhatsApp message arrived but no vendor has signed up yet")
+        # Not one of ours (a number nobody connected, or a test message from Meta's dashboard): do not guess a vendor.
+        logger.warning("Dropping a WhatsApp message sent to the unknown business number %r", inbound.phone_number_id)
         return
     conversation = get_or_create_conversation(session, vendor, inbound.phone, inbound.name)
     text = inbound.text if inbound.kind == "text" else f"[{inbound.kind} message]"
@@ -205,7 +218,7 @@ def handle_inbound(session: Session, inbound: InboundMessage, model: ChatModel, 
         session.rollback()
         logger.info("Ignoring a message WhatsApp delivered twice")
         return
-    whatsapp.mark_read(inbound.id)
+    whatsapp.mark_read(vendor.whatsapp_phone_number_id, inbound.id)
 
     if inbound.kind != "text":
         # A picture or document while a bank transfer is waiting is the buyer's receipt.
@@ -215,17 +228,17 @@ def handle_inbound(session: Session, inbound: InboundMessage, model: ChatModel, 
         if should_reply(conversation):
             if order is not None:
                 reply_text = payments.RECEIPT_RECEIVED_REPLY
-            elif settings.payment_mode == "manual":
+            elif vendor.payment_mode == "manual":
                 reply_text = NON_TEXT_REPLY_MANUAL
             else:
                 reply_text = NON_TEXT_REPLY
             reply = add_message(session, conversation, MessageRole.AI, reply_text)
-            whatsapp.send_whatsapp_text(conversation.customer_phone, reply.text)
+            send_to_buyer(vendor, conversation, reply.text)
         return
     if settings.whatsapp_echo_mode:  # for checking the webhook wiring without a model
         if should_reply(conversation):
             reply = add_message(session, conversation, MessageRole.AI, f"Echo: {inbound.text}")
-            whatsapp.send_whatsapp_text(conversation.customer_phone, reply.text)
+            send_to_buyer(vendor, conversation, reply.text)
         return
     answer_buyer(session, conversation, model, settings, deliver=True)
 
@@ -252,17 +265,18 @@ def finish_paid_order(session: Session, order_id: str) -> Message | None:
     conversation = session.get(Conversation, order.conversation_id)
     if conversation is None:
         return None
+    vendor = vendor_of(session, conversation)
     summary = payments.order_summary(session, order)
     receipt = add_message(
         session,
         conversation,
         MessageRole.AI,
-        payments.receipt_text(order, summary, pidgin=_is_pidgin(session, conversation)),
+        payments.receipt_text(order, summary, pidgin=_is_pidgin(session, conversation), owner=owner_name(vendor)),
     )
     if not conversation.is_simulator:
-        whatsapp.send_whatsapp_text(conversation.customer_phone, receipt.text)
-        if order.payment_method != PaymentMethod.MANUAL:  # Ada just tapped Mark paid; she knows
-            notify_vendor(payments.pack_alert_text(order, summary, conversation))
+        send_to_buyer(vendor, conversation, receipt.text)
+        if order.payment_method != PaymentMethod.MANUAL:  # for a bank transfer the vendor just tapped Mark paid
+            notify_vendor(vendor, payments.pack_alert_text(order, summary, conversation))
     return receipt
 
 
@@ -279,7 +293,7 @@ def finish_failed_order(session: Session, order_id: str) -> Message | None:
         payments.failure_text(pidgin=_is_pidgin(session, conversation)),
     )
     if not conversation.is_simulator:
-        whatsapp.send_whatsapp_text(conversation.customer_phone, message.text)
+        send_to_buyer(vendor_of(session, conversation), conversation, message.text)
     return message
 
 
@@ -311,11 +325,13 @@ def _flag_amount_mismatch(session: Session, reference: str, amount: object) -> N
     if order is None:
         return
     conversation = session.get(Conversation, order.conversation_id)
-    if conversation is not None:
-        conversation.status = ConversationStatus.NEEDS_ATTENTION
-        session.commit()
+    if conversation is None:
+        return
+    conversation.status = ConversationStatus.NEEDS_ATTENTION
+    session.commit()
     paid = format_naira(amount) if isinstance(amount, int) and not isinstance(amount, bool) else "an unexpected amount"
     notify_vendor(
+        vendor_of(session, conversation),
         f"Check order {reference} before packing: Paystack reported {paid}, "
         f"but the order total is {format_naira(order.total_kobo)}."
     )

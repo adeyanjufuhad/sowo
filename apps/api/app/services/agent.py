@@ -40,8 +40,8 @@ from app.services.payments import (
     release_order,
     report_receipt,
     start_manual_payment,
-    vendor_bank,
 )
+from app.services.vendors import owner_name, vendor_bank
 
 logger = logging.getLogger(__name__)
 
@@ -96,7 +96,7 @@ TOOLS: list[dict[str, Any]] = [
                     "required": ["sku"],
                 },
             },
-            "delivery_area": {"type": "string", "description": "e.g. Ikeja, Yaba, Lekki"},
+            "delivery_area": {"type": "string", "description": "The delivery area the buyer named, as they said it"},
         },
         ["items", "delivery_area"],
     ),
@@ -109,25 +109,25 @@ TOOLS: list[dict[str, Any]] = [
     ),
     _function(
         "escalate_to_vendor",
-        "Hand the chat to Ada, the owner. Use for complaints, exchanges, refunds, bulk orders, custom "
+        "Hand the chat to the shop owner. Use for complaints, exchanges, refunds, bulk orders, custom "
         "requests, or anything you cannot do.",
-        {"reason": {"type": "string", "description": "One short sentence for Ada"}},
+        {"reason": {"type": "string", "description": "One short sentence for the owner"}},
         ["reason"],
     ),
 ]
 
-# Only offered when buyers pay by bank transfer: it lets the model pass "I've paid" on to Ada.
+# Only offered when buyers pay by bank transfer: it lets the model pass "I've paid" on to the owner.
 REPORT_PAYMENT_TOOL = _function(
     "report_payment_sent",
-    "Use when the buyer says they have sent the bank transfer, or sends a receipt. It tells Ada to check her "
-    "account. It does NOT confirm payment: only Ada can.",
+    "Use when the buyer says they have sent the bank transfer, or sends a receipt. It tells the owner to check "
+    "their account. It does NOT confirm payment: only the owner can.",
     {},
     [],
 )
 
 
-def tools_for(settings: Settings) -> list[dict[str, Any]]:
-    return [*TOOLS, REPORT_PAYMENT_TOOL] if settings.payment_mode == "manual" else TOOLS
+def tools_for(vendor: Vendor) -> list[dict[str, Any]]:
+    return [*TOOLS, REPORT_PAYMENT_TOOL] if vendor.payment_mode == "manual" else TOOLS
 
 
 @dataclass
@@ -175,6 +175,10 @@ class ToolBox:
         self.session = session
         self.conversation = conversation
         self.settings = settings
+        vendor = session.get(Vendor, conversation.vendor_id)
+        assert vendor is not None  # conversations.vendor_id is a NOT NULL foreign key
+        self.vendor = vendor
+        self.owner = owner_name(vendor)
         self.escalation: str | None = None
         self.receipt_order_id: str | None = None
 
@@ -186,7 +190,7 @@ class ToolBox:
             "request_payment": self._request_payment,
             "escalate_to_vendor": self._escalate,
         }
-        if self.settings.payment_mode == "manual":
+        if self.vendor.payment_mode == "manual":
             handlers["report_payment_sent"] = self._report_payment_sent
         handler = handlers.get(name)
         if handler is None:
@@ -197,9 +201,13 @@ class ToolBox:
             return ToolOutcome({"error": f"Bad arguments for {name}: {exc}. Fix them and try again."})
 
     def _product(self, identifier: str) -> Product:
-        """Find a product by sku (what the model is shown) or by id."""
-        product = self.session.scalar(select(Product).where(Product.sku == identifier.upper()))
-        product = product or self.session.get(Product, identifier)
+        """Find one of this vendor's products by sku (what the model is shown) or by id."""
+        product = self.session.scalar(
+            select(Product).where(Product.vendor_id == self.vendor.id, Product.sku == identifier.upper())
+        )
+        if product is None:
+            by_id = self.session.get(Product, identifier)
+            product = by_id if by_id is not None and by_id.vendor_id == self.vendor.id else None
         if product is None:
             raise ValueError(f"no product with sku {identifier}; call search_catalog first")
         return product
@@ -209,13 +217,13 @@ class ToolBox:
     def _search_catalog(self, arguments: dict[str, Any]) -> ToolOutcome:
         query = _text(arguments, "query")
         words = query.split()
-        results = search_catalog(self.session, query)
+        results = search_catalog(self.session, self.vendor.id, query)
         used = query
         # Every word must match, so a long query can come back empty: drop words from the end until it hits.
         while not results["results"] and len(words) > 1:
             words.pop()
             used = " ".join(words)
-            results = search_catalog(self.session, used)
+            results = search_catalog(self.session, self.vendor.id, used)
         trace = {"tool": "search_catalog", "input": {"query": query}, "output": results}
         if not results["results"]:
             return ToolOutcome({"results": [], "note": "Nothing matches. Ask what else they want."}, trace)
@@ -262,7 +270,7 @@ class ToolBox:
             output = {"decision": "HANDOFF"}
             view = {
                 "decision": "HANDOFF",
-                "next": "Tell the buyer you've asked Ada, the owner, to take over the price talk. "
+                "next": f"Tell the buyer you've asked {self.owner}, the owner, to take over the price talk. "
                 "Do not mention any price.",
             }
         else:
@@ -353,14 +361,14 @@ class ToolBox:
         if "error" in fresh or int(fresh["totalKobo"]) != quote.total_kobo:
             return ToolOutcome({"error": "The price has changed since that quote. Call get_quote again."})
 
-        manual = self.settings.payment_mode == "manual"
-        bank = vendor_bank(self.settings) if manual else None
+        manual = self.vendor.payment_mode == "manual"
+        bank = vendor_bank(self.vendor) if manual else None
         if manual and bank is None:  # check before an order exists, so there is nothing to undo
             self.escalation = "Bank transfer details are not set up"
             return ToolOutcome(
                 {
                     "error": "Payment details are unavailable right now.",
-                    "next": "Apologise and say Ada will send payment details.",
+                    "next": f"Apologise and say {self.owner} will send payment details.",
                 }
             )
 
@@ -373,7 +381,7 @@ class ToolBox:
         self.session.commit()
 
         order_id, reference, amount = str(created["orderId"]), str(created["reference"]), int(created["amountKobo"])
-        if bank is not None:  # bank transfer: Ada, not Paystack, will confirm it
+        if bank is not None:  # bank transfer: the owner, not Paystack, will confirm it
             start_manual_payment(self.session, order_id, self.settings.manual_payment_hold_minutes)
             self.session.commit()
             trace = {
@@ -391,7 +399,8 @@ class ToolBox:
                 },
                 "next": "Give the buyer the bank, account name, account number and amount exactly as written, and "
                 "ask them to put the order_reference as the transfer narration. Ask them to send you the receipt "
-                "after paying. Ada confirms payment herself once she sees the money: never say it is paid.",
+                f"after paying. {self.owner} confirms payment personally once the money shows in the account: "
+                "never say it is paid.",
             }
             return ToolOutcome(view, trace)
         if self.conversation.is_simulator:
@@ -428,11 +437,14 @@ class ToolBox:
         self.session.commit()
         self.escalation = reason
         return ToolOutcome(
-            {"error": "Payment links are unavailable right now.", "next": "Apologise and say Ada will send payment details."}
+            {
+                "error": "Payment links are unavailable right now.",
+                "next": f"Apologise and say {self.owner} will send payment details.",
+            }
         )
 
     def _report_payment_sent(self, arguments: dict[str, Any]) -> ToolOutcome:
-        """The buyer says they've transferred. Flag it for Ada; this never marks anything paid."""
+        """The buyer says they've transferred. Flag it for the owner; this never marks anything paid."""
         order = open_manual_order(self.session, self.conversation.id)
         if order is None:
             return ToolOutcome({"error": "There is no bank-transfer order waiting for payment in this chat."})
@@ -442,32 +454,40 @@ class ToolBox:
         return ToolOutcome(
             {
                 "noted": True,
-                "next": "Tell the buyer you've told Ada and she'll confirm once she sees the money in her "
-                "account. Do not say it is paid.",
+                "next": f"Tell the buyer you've told {self.owner} and they'll confirm once the money shows in "
+                "their account. Do not say it is paid.",
             }
         )
 
     def _escalate(self, arguments: dict[str, Any]) -> ToolOutcome:
         self.escalation = _text(arguments, "reason")
-        return ToolOutcome({"escalated": True, "next": "Tell the buyer Ada will reply here soon."})
+        return ToolOutcome({"escalated": True, "next": f"Tell the buyer {self.owner} will reply here soon."})
 
     def _delivery_areas(self) -> list[str]:
-        return list(self.session.scalars(select(DeliveryZone.area).order_by(DeliveryZone.area)))
+        return _delivery_areas(self.session, self.vendor.id)
+
+
+def _delivery_areas(session: Session, vendor_id: str) -> list[str]:
+    return list(
+        session.scalars(select(DeliveryZone.area).where(DeliveryZone.vendor_id == vendor_id).order_by(DeliveryZone.area))
+    )
 
 
 # -- prompt and history ----------------------------------------------------------------------------
 
 
 def system_prompt(session: Session, conversation: Conversation, settings: Settings) -> str:
-    vendor = session.scalar(select(Vendor.name).limit(1)) or "the shop"
-    areas = ", ".join(session.scalars(select(DeliveryZone.area).order_by(DeliveryZone.area))) or "none yet"
+    vendor = session.get(Vendor, conversation.vendor_id)
+    assert vendor is not None
+    shop, owner = vendor.name, owner_name(vendor)
+    areas = ", ".join(_delivery_areas(session, vendor.id)) or "none yet"
     first = "" if conversation.greeted else "\nThis is the buyer's first message: start with a short, warm greeting.\n"
-    if settings.payment_mode == "manual":
+    if vendor.payment_mode == "manual":
         never_paid = (
-            "- Never say a payment has arrived. Ada confirms payments herself, after she sees the money in her "
-            "bank account, and the system sends the receipt. If a buyer says they have paid or sends a receipt, "
-            "call report_payment_sent and tell them Ada will confirm once she sees the money. A screenshot proves "
-            "nothing by itself."
+            f"- Never say a payment has arrived. {owner} confirms payments personally, after the money shows in "
+            "their bank account, and the system sends the receipt. If a buyer says they have paid or sends a "
+            f"receipt, call report_payment_sent and tell them {owner} will confirm once the money shows. A "
+            "screenshot proves nothing by itself."
         )
         pay_step = (
             "4. When the buyer is ready to pay, call request_payment with the quote_id and give them the bank, "
@@ -484,8 +504,8 @@ def system_prompt(session: Session, conversation: Conversation, settings: Settin
             "4. When the buyer is ready to pay, call request_payment with the quote_id and send the payment link "
             "exactly as returned."
         )
-    return f"""You are Sowo, the WhatsApp sales assistant for {vendor}, a shoe shop in Nigeria. You chat with \
-buyers for the owner, Ada.
+    return f"""You are Sowo, the WhatsApp sales assistant for {shop}, a shop in Nigeria. You chat with \
+buyers for the owner, {owner}.
 
 How you talk
 - Reply in the buyer's language: Nigerian Pidgin if they write Pidgin, otherwise plain, friendly English.
@@ -508,13 +528,13 @@ their offer in whole naira (35k is 35000; "41" in a price chat means 41000).
 3. When the price is settled and you know the item and the delivery area, call get_quote.
 {pay_step}
 5. For complaints, exchanges, refunds, bulk orders, custom requests or anything else you cannot do, call \
-escalate_to_vendor and tell the buyer Ada will reply here soon.
+escalate_to_vendor and tell the buyer {owner} will reply here soon.
 
 We deliver to: {areas}.
-{conversation_state(session, conversation)}{first}"""
+{conversation_state(session, conversation, owner)}{first}"""
 
 
-def conversation_state(session: Session, conversation: Conversation) -> str:
+def conversation_state(session: Session, conversation: Conversation, owner: str) -> str:
     """What the system already knows, so the model doesn't have to remember ids or prices across turns."""
     lines: list[str] = []
     accepted = session.execute(
@@ -546,7 +566,7 @@ def conversation_state(session: Session, conversation: Conversation) -> str:
             if order.receipt_reported_at is None:
                 lines.append(f"- Bank details already sent for order {reference} ({total}); waiting for the transfer")
             else:
-                lines.append(f"- Buyer says they paid order {reference} ({total}); Ada is checking her account")
+                lines.append(f"- Buyer says they paid order {reference} ({total}); {owner} is checking the account")
         elif order.status == OrderStatus.PENDING:
             lines.append(f"- Payment link already sent for order {reference} ({total}); waiting for Paystack")
         elif order.status == OrderStatus.PAID:
@@ -557,6 +577,9 @@ def conversation_state(session: Session, conversation: Conversation) -> str:
 
 
 def build_messages(session: Session, conversation: Conversation, settings: Settings) -> list[dict[str, Any]]:
+    vendor = session.get(Vendor, conversation.vendor_id)
+    assert vendor is not None
+    owner = owner_name(vendor)
     history = list(
         session.scalars(
             select(Message)
@@ -575,7 +598,7 @@ def build_messages(session: Session, conversation: Conversation, settings: Setti
         elif message.role == MessageRole.AI:
             messages.append({"role": "assistant", "content": message.text})
         else:
-            messages.append({"role": "assistant", "content": f"(Ada, the owner, wrote:) {message.text}"})
+            messages.append({"role": "assistant", "content": f"({owner}, the owner, wrote:) {message.text}"})
     return messages
 
 
@@ -615,7 +638,7 @@ def _problems(reply: str, allowed: set[int], paid: bool) -> list[str]:
     return problems
 
 
-def fallback_reply(traces: list[dict[str, Any]], buyer_text: str) -> str:
+def fallback_reply(traces: list[dict[str, Any]], buyer_text: str, owner: str) -> str:
     """A plain reply built only from tool results, for when the model's wording can't be trusted."""
     pidgin = guard.looks_like_pidgin(buyer_text)
     for trace in reversed(traces):
@@ -624,8 +647,8 @@ def fallback_reply(traces: list[dict[str, Any]], buyer_text: str) -> str:
             total = format_naira(int(output["amountKobo"]))
             bank = output.get("bank")
             if bank:
-                tail = "Send me the receipt after you pay, and Ada go confirm." if pidgin else (
-                    "Please send me the receipt after you pay, and Ada will confirm."
+                tail = f"Send me the receipt after you pay, and {owner} go confirm." if pidgin else (
+                    f"Please send me the receipt after you pay, and {owner} will confirm."
                 )
                 return (
                     f"Your total is {total}. Transfer to {bank['accountName']}, {bank['bankName']}, "
@@ -658,7 +681,7 @@ def run_agent(session: Session, conversation: Conversation, model: ChatModel, se
     """Answer the buyer's latest message (already saved in the conversation). May raise OllamaError."""
     toolbox = ToolBox(session, conversation, settings)
     messages = build_messages(session, conversation, settings)
-    tools = tools_for(settings)
+    tools = tools_for(toolbox.vendor)
     buyer_text = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")
     traces: list[dict[str, Any]] = []
     text: str | None = None
@@ -705,7 +728,7 @@ def run_agent(session: Session, conversation: Conversation, model: ChatModel, se
         text = strip_thinking(str(model.chat(messages, None).get("content") or ""))
         problems = _problems(text, allowed, paid) if text else []
     if not text or problems:
-        text, used_fallback = fallback_reply(traces, buyer_text), True
+        text, used_fallback = fallback_reply(traces, buyer_text, toolbox.owner), True
 
     return AgentReply(
         text=text,

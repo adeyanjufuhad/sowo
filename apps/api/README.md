@@ -65,12 +65,9 @@ Everything comes from environment variables or `.env`. See [`.env.example`](.env
 | `AGENT_MAX_TOOL_ROUNDS` | `6` | Tool calls the model may chain in one reply |
 | `WHATSAPP_VERIFY_TOKEN` | | A string you choose; Meta sends it back when you register the webhook |
 | `WHATSAPP_APP_SECRET` | | Meta app secret, used to verify the signature on every delivery |
-| `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_NUMBER_ID` | | Used to send replies through the Cloud API |
+| `WHATSAPP_ACCESS_TOKEN` | | The platform's token for sending through the Cloud API. Each vendor's own number is stored on their row, see [Shop settings](#shop-settings) |
 | `WHATSAPP_GRAPH_VERSION` | `v23.0` | Graph API version. Meta retires old ones, so check theirs |
 | `WHATSAPP_ECHO_MODE` | `false` | Reply with `Echo: <text>` and skip the model, to test the webhook wiring |
-| `VENDOR_ALERT_PHONE` | | Ada's own WhatsApp number (digits, with country code) for "pack this" and "needs you" alerts |
-| `PAYMENT_MODE` | `paystack` | `paystack` sends a checkout link. `manual` gives the buyer Ada's bank account and waits for her to tap Mark paid (see [Bank-transfer mode](#bank-transfer-mode)) |
-| `VENDOR_BANK_NAME`, `VENDOR_ACCOUNT_NAME`, `VENDOR_ACCOUNT_NUMBER` | | Ada's account for `manual` mode. The number must be 10 digits |
 | `MANUAL_PAYMENT_HOLD_MINUTES` | `180` | How long a bank-transfer order holds stock. Longer than `STOCK_HOLD_MINUTES` because transfers and checking a bank app take a while |
 | `PAYSTACK_SECRET_KEY` | | Test or live secret key. Also verifies Paystack's webhook signature |
 | `PAYSTACK_CALLBACK_URL` | | Where the buyer lands after paying (optional) |
@@ -78,6 +75,7 @@ Everything comes from environment variables or `.env`. See [`.env.example`](.env
 | `PUBLIC_BASE_URL` | `http://localhost:8000` | This service's public address |
 | `REPLY_DELAY_SECONDS` | `3` | A pause before each WhatsApp reply so it feels like typing |
 | `STOCK_HOLD_MINUTES` | `15` | How long unpaid orders hold stock |
+| `SIMULATOR_VENDOR_NAME` | `Ada's Footwear` | The demo shop the simulator's chats belong to |
 | `SIMULATOR_ENABLED` | `true` | The `/simulator/*` endpoints behind the web app's demo page. Turn off when real buyers use the deployment |
 | `CORS_ORIGINS` | `http://localhost:3000` | Comma-separated origins allowed to call the API |
 
@@ -94,6 +92,24 @@ A vendor created before accounts existed, or by the demo seed, has no login. Giv
 ```bash
 python -m app.claim_vendor "Ada's Footwear" ada@example.com
 ```
+
+## Shop settings
+
+Everything that differs from one vendor to the next lives on the vendor's row in the database, not in the environment, so any number of vendors can share one deployment. The environment keeps only the platform's secrets (Meta app secret, access token, verify token; Paystack key; database; Ollama).
+
+A signed-in vendor reads and changes their own with `GET` and `PATCH /vendor/settings` (send only what changes; `null` or an empty string clears an optional setting):
+
+| Field | What it does |
+| --- | --- |
+| `whatsappPhoneNumberId` | The id Meta gives their WhatsApp business number. It is how a buyer's message finds the right vendor, and replies are sent from this number. Unique: two shops can't share one (`409`) |
+| `alertPhone` | Their own phone, for "pack this" and "needs you" alerts (digits with country code; `+`, spaces and dashes are ignored) |
+| `ownerName` | What buyers and the assistant call the person behind the shop ("Ada"). Falls back to the business name |
+| `paymentMode` | `paystack` (a checkout link, confirmed by Paystack's webhook) or `manual` (the vendor's own bank account, see [Bank-transfer mode](#bank-transfer-mode)) |
+| `bankName`, `bankAccountName`, `bankAccountNumber` | The account for `manual` mode. The number must be 10 digits. Choosing `manual` without a complete account is refused (`400`) |
+
+A WhatsApp message to a number no vendor has connected is dropped (and logged); Sowo never guesses a vendor. Products, delivery zones, stock, offers and quotes are all per vendor too: the assistant for one shop cannot see, quote or sell another shop's products, and two shops may use the same sku.
+
+Settings are not copied from the environment when upgrading. Variables from earlier versions (`WHATSAPP_PHONE_NUMBER_ID`, `VENDOR_ALERT_PHONE`, `PAYMENT_MODE`, `VENDOR_BANK_NAME`, `VENDOR_ACCOUNT_NAME`, `VENDOR_ACCOUNT_NUMBER`) are ignored: enter them through the settings endpoint once.
 
 ## Endpoints
 
@@ -118,8 +134,8 @@ Both webhooks answer `200` straight away and do the real work in the background,
 
 ## How a message is handled
 
-1. The webhook checks the signature, drops anything seen before (`whatsapp_message_id` is unique), finds or creates the buyer's conversation and saves the message.
-2. Sowo only replies while the chat is **active**: not paused by Ada, and not waiting for her after a hand-off. Otherwise the message is just saved for the dashboard.
+1. The webhook checks the signature, drops anything seen before (`whatsapp_message_id` is unique), finds the vendor who owns the number the message was sent to, finds or creates the buyer's conversation with that vendor and saves the message.
+2. Sowo only replies while the chat is **active**: not paused by the vendor, and not waiting for them after a hand-off. Otherwise the message is just saved for the dashboard.
 3. The agent builds a prompt (the shop, delivery areas, and what the system already knows: agreed prices, the latest quote, any open order) plus the recent chat, and asks Qwen3.
 4. Qwen3 answers with text or a **tool call**. Tools run on the server against the database; their results go back to the model, for up to `AGENT_MAX_TOOL_ROUNDS` rounds.
 5. The final text is checked (below), saved with its tool calls for the dashboard, and sent over WhatsApp.
@@ -130,19 +146,19 @@ Both webhooks answer `200` straight away and do the real work in the background,
 | `evaluate_offer` | a sku and the buyer's offer in naira | `ACCEPT` / `COUNTER` / `REJECT` / `HANDOFF` and, if any, the price. Powered by `services/haggling.py` |
 | `get_quote` | skus, quantities, a delivery area (no prices) | lines, delivery fee and total, priced from the database and the agreed offer |
 | `request_payment` | a quote id | an order, held stock, and a Paystack payment link |
-| `escalate_to_vendor` | a short reason | hands the chat to Ada and alerts her |
+| `escalate_to_vendor` | a short reason | hands the chat to the vendor and alerts them |
 
 ## What the code enforces
 
 - **The model never sees a floor price.** No tool returns one, the prompt doesn't name the concept, and `tests/test_agent.py` checks everything sent to the model for it.
 - **Every amount in a reply must come from a tool.** `services/guard.py` finds each ₦ amount in the model's reply and compares it with what tools returned in this chat and what the buyer typed. A reply with an unbacked price is sent back to the model once to rewrite; if it still fails, the server writes a plain reply from the tool results.
 - **The model can't announce a payment.** A reply claiming money arrived is blocked the same way. Receipts are written by the server, from the order, after Paystack's webhook.
-- **Payment means a signed Paystack webhook.** `mark_order_paid` checks the reference and that the amount equals the order total in kobo. It is idempotent, so a retried webhook neither double-sells stock nor double-sends a receipt. A mismatched amount flags the chat and alerts Ada instead.
+- **Payment means a signed Paystack webhook.** `mark_order_paid` checks the reference and that the amount equals the order total in kobo. It is idempotent, so a retried webhook neither double-sells stock nor double-sends a receipt. A mismatched amount flags the chat and alerts the vendor instead.
 - **Prices are re-derived, never trusted.** `request_payment` re-prices the quote just before creating the order, and fails if anything changed.
 
 ## Bank-transfer mode
 
-Set `PAYMENT_MODE=manual` and Ada's account details, and Sowo stops using Paystack altogether:
+A vendor who sets `paymentMode` to `manual` (with their account details) in their [shop settings](#shop-settings) stops using Paystack altogether. Ada is the example below:
 
 1. After the haggle, `request_payment` creates the order, holds the stock for `MANUAL_PAYMENT_HOLD_MINUTES`, and gives the model Ada's bank, account name and number plus the order reference to use as the narration. If the account isn't set up (or isn't 10 digits), no order is created and the chat goes to Ada.
 2. The buyer pays from their bank app and sends the receipt picture, or says "I don pay". A picture while an order is waiting flags it; words go to the model, which has a `report_payment_sent` tool that does the same. Either way Ada gets a WhatsApp alert once, and the hold is extended while she checks.
@@ -154,12 +170,12 @@ The receipt is a prompt for Ada, not proof: the picture isn't downloaded, read o
 ## Connect WhatsApp
 
 1. In [Meta for Developers](https://developers.facebook.com) create an app and add the **WhatsApp** product. Its API setup page gives you a test number's **phone number id** and an access token (the temporary one lasts 24 hours; use a System User token for anything longer).
-2. Put the phone number id and token in `.env`, along with the **app secret** (App settings → Basic) and a **verify token** you make up.
+2. Put the token in `.env` as `WHATSAPP_ACCESS_TOKEN`, along with the **app secret** (App settings → Basic) and a **verify token** you make up. Then give each vendor's **phone number id** to their shop with `PATCH /vendor/settings` (`whatsappPhoneNumberId`). One webhook serves every vendor; the number in each delivery decides whose it is.
 3. Expose your local server over HTTPS (for example `ngrok http 8000` or `cloudflared tunnel --url http://localhost:8000`).
 4. In the WhatsApp configuration, set the callback URL to `https://<your-tunnel>/webhooks/whatsapp` and the verify token to yours, then subscribe to the **messages** field.
 5. Message your test number from your own phone. To check just the wiring first, set `WHATSAPP_ECHO_MODE=true`.
 
-WhatsApp only lets a business send free-form text within 24 hours of the buyer's last message. Replies to buyers are always inside that window. A "pack this" alert to `VENDOR_ALERT_PHONE` is not, unless Ada has messaged the number recently, so production needs an approved message template for alerts.
+WhatsApp only lets a business send free-form text within 24 hours of the buyer's last message. Replies to buyers are always inside that window. A "pack this" alert to a vendor's `alertPhone` is not, unless Ada has messaged the number recently, so production needs an approved message template for alerts.
 
 ## Connect Paystack
 
@@ -170,7 +186,7 @@ WhatsApp only lets a business send free-form text within 24 hours of the buyer's
 ## Tests
 
 ```bash
-pytest          # 175 tests
+pytest          # 259 tests
 ruff check .
 ```
 
@@ -180,7 +196,9 @@ Tests never touch the network: Qwen3 is a scripted stand-in (`tests/helpers.py`)
 
 ## Known limits
 
-- One vendor, one item type per order line, and one conversation per buyer phone number.
+- One item type per order line, and one conversation per buyer per vendor.
+- One Meta access token for the whole platform, which works for the vendors' numbers the platform's Meta app manages. Vendors don't bring their own tokens, so nothing secret per vendor is stored in the database.
+- Paystack payments all go to the platform's Paystack account. Paying vendors out (subaccounts) isn't built.
 - Qwen3 is not tuned for Nigerian Pidgin; the server, not the model, validates every offer and amount.
 - Catalogue search is a keyword match, not semantic.
 - Only text messages are read. A picture is treated as a receipt when a bank-transfer order is waiting; otherwise it gets a polite "text only" reply.

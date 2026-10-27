@@ -43,19 +43,30 @@ def run_migrations_offline() -> None:
         context.run_migrations()
 
 
-def run_migrations_online() -> None:
-    connection = config.attributes.get("connection")
-    if connection is not None:  # the app runs migrations on its own engine at startup
+def _run(connection: Connection) -> None:
+    # SQLite rebuilds a table to change it (copy, drop, rename). With foreign keys enforced, dropping a table that
+    # other tables point at fails, so they are switched off for the migration, as SQLite's own docs advise.
+    sqlite = connection.dialect.name == "sqlite"
+    if sqlite:
+        connection.exec_driver_sql("PRAGMA foreign_keys=OFF")
+    try:
         _configure(connection)
         with context.begin_transaction():
             context.run_migrations()
+    finally:
+        if sqlite:
+            connection.exec_driver_sql("PRAGMA foreign_keys=ON")
+
+
+def run_migrations_online() -> None:
+    connection = config.attributes.get("connection")
+    if connection is not None:  # the app runs migrations on its own engine at startup
+        _run(connection)
         return
 
     engine = create_database_engine(migration_url())
     with engine.connect() as connection:
-        _configure(connection)
-        with context.begin_transaction():
-            context.run_migrations()
+        _run(connection)
         connection.commit()
     engine.dispose()
 

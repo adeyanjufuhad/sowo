@@ -1,12 +1,10 @@
 """What happens around an order: releasing held stock, and the messages a payment produces."""
 
-import re
 from datetime import timedelta
 
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
-from app.config import Settings
 from app.models import (
     Conversation,
     Order,
@@ -42,7 +40,7 @@ def order_summary(session: Session, order: Order) -> str:
     return "; ".join(parts) or "your order"
 
 
-def receipt_text(order: Order, summary: str, *, pidgin: bool) -> str:
+def receipt_text(order: Order, summary: str, *, pidgin: bool, owner: str) -> str:
     """The buyer's receipt. Written by us, not the model: it states money, so it comes from the order."""
     total = format_naira(order.total_kobo)
     area = order.delivery_area or "you"
@@ -50,21 +48,21 @@ def receipt_text(order: Order, summary: str, *, pidgin: bool) -> str:
     if order.payment_method == PaymentMethod.MANUAL:  # Ada confirmed it herself
         if pidgin:
             return (
-                f"Payment confirm ✅ Ada don see your {total} transfer for order {reference}.\n"
-                f"She don dey pack your {summary}. E go reach {area}. Thank you!"
+                f"Payment confirm ✅ {owner} don see your {total} transfer for order {reference}.\n"
+                f"{owner} don dey pack your {summary}. E go reach {area}. Thank you!"
             )
         return (
-            f"Payment confirmed ✅ Ada has confirmed your transfer of {total} for order {reference}.\n"
-            f"She is packing your {summary} now and it will be delivered to {area}. Thank you!"
+            f"Payment confirmed ✅ {owner} has confirmed your transfer of {total} for order {reference}.\n"
+            f"{owner} is packing your {summary} now and it will be delivered to {area}. Thank you!"
         )
     if pidgin:
         return (
             f"Payment confirm ✅ We don receive {total} for order {reference}.\n"
-            f"Ada don dey pack your {summary}. E go reach {area}. Thank you!"
+            f"{owner} don dey pack your {summary}. E go reach {area}. Thank you!"
         )
     return (
         f"Payment confirmed ✅ We've received {total} for order {reference}.\n"
-        f"Ada is packing your {summary} now and it will be delivered to {area}. Thank you!"
+        f"{owner} is packing your {summary} now and it will be delivered to {area}. Thank you!"
     )
 
 
@@ -88,21 +86,9 @@ def pack_alert_text(order: Order, summary: str, conversation: Conversation) -> s
 # -- manual (bank transfer) payments ---------------------------------------------------------------------
 
 RECEIPT_RECEIVED_REPLY = (
-    "Thanks! I've sent your receipt to Ada. She'll confirm as soon as she sees the money in her account, "
+    "Thanks! I've sent your receipt to the owner. They'll confirm as soon as the money shows in their account, "
     "and I'll tell you here."
 )
-
-
-def vendor_bank(settings: Settings) -> dict[str, str] | None:
-    """Ada's account for bank transfers, or None if it isn't (properly) set up."""
-    bank = {
-        "bankName": settings.vendor_bank_name.strip(),
-        "accountName": settings.vendor_account_name.strip(),
-        "accountNumber": re.sub(r"\s", "", settings.vendor_account_number),
-    }
-    if not bank["bankName"] or not bank["accountName"] or not re.fullmatch(r"\d{10}", bank["accountNumber"]):
-        return None
-    return bank
 
 
 def _extend_hold(session: Session, order_id: str, minutes: int) -> None:

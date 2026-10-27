@@ -12,6 +12,7 @@ from app.routes import router
 from app.routes_auth import router as auth_router
 from app.routes_payments import router as payments_router
 from app.routes_simulator import router as simulator_router
+from app.routes_vendor import router as vendor_router
 from app.routes_webhooks import router as webhooks_router
 
 settings = get_settings()
@@ -35,6 +36,7 @@ app.add_middleware(
 )
 app.include_router(router)
 app.include_router(auth_router)
+app.include_router(vendor_router)
 app.include_router(payments_router)
 app.include_router(webhooks_router)
 app.include_router(simulator_router)

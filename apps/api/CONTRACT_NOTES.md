@@ -29,16 +29,25 @@ Where the real backend differs from, or adds to, `docs/api-contract.md` (for its
 
 - **Every dashboard endpoint now needs `Authorization: Bearer <sessionToken>`** and returns only the signed-in vendor's data: `GET /conversations`, `GET /conversations/:id/messages`, `POST /conversations/:id/pause`, `.../resume`, `.../messages`, `GET /orders`, `GET /products`, `POST /orders/:id/mark-paid`. Another vendor's id is a `404`. Without a valid token the response is `401` with `{ "error": { "code": "UNAUTHORIZED", "message": "Sign in to continue" } }` and a `WWW-Authenticate: Bearer` header. `ApiError.error.code` gains `"UNAUTHORIZED"`.
 - **New:** `POST /auth/signup` `{ email, password, businessName }` (`201`, `400` with a readable message, `409` for a taken email or business name), `POST /auth/login` `{ email, password }` (`401` "Incorrect email or password" for both a wrong password and an unknown email), `POST /auth/logout` (revokes the token used), `GET /auth/me`. The sign-up and login responses are `{ vendor: { id, name, email }, sessionToken, expiresAt }`. The token is shown once; the API stores only its hash.
-- **Not authenticated:** `/health`, `/webhooks/*` (signatures) and `/simulator/*` (gated by `SIMULATOR_ENABLED`). Simulator chats currently belong to the oldest vendor.
+- **Not authenticated:** `/health`, `/webhooks/*` (signatures) and `/simulator/*` (gated by `SIMULATOR_ENABLED`). Simulator chats belong to the demo shop (`SIMULATOR_VENDOR_NAME`).
 - **Tables and columns.** `vendors.email`, `vendors.password_hash` and `vendors.created_at`; new `vendor_sessions`; `conversations.vendor_id` (not null, existing rows go to the first vendor by name). Migration `0002`.
 
-### Bank-transfer mode (`PAYMENT_MODE=manual`)
+### Shop settings and several vendors
+
+- **New:** `GET /vendor/settings` and `PATCH /vendor/settings` (signed in; partial update; `400` with a readable message, `409` when the WhatsApp number belongs to another shop). Shape: `{ businessName, ownerName, whatsappPhoneNumberId, alertPhone, paymentMode: "paystack" | "manual", bankName, bankAccountName, bankAccountNumber, paymentReady, whatsappConnected }`. The shared types are `VendorSettings` and `VendorSettingsUpdate`.
+- **Moved out of the environment:** `WHATSAPP_PHONE_NUMBER_ID`, `VENDOR_ALERT_PHONE`, `PAYMENT_MODE` and `VENDOR_BANK_NAME` / `VENDOR_ACCOUNT_NAME` / `VENDOR_ACCOUNT_NUMBER` are gone. They are columns on `vendors` and are not copied over on upgrade.
+- **Routing.** A WhatsApp delivery is matched to a vendor by `value.metadata.phone_number_id`. Unknown numbers are dropped (still `200`, so Meta doesn't retry). Replies and alerts are sent from the vendor's own number.
+- **Scoping.** `search_catalog`, sku lookup, delivery zones, quotes and orders only see the conversation's vendor. A sku is unique per vendor, not globally.
+- **Columns.** `vendors.owner_name`, `whatsapp_phone_number_id` (unique), `alert_phone`, `payment_mode` (`paystack` by default), `bank_name`, `bank_account_name`, `bank_account_number`; `products` is unique on `(vendor_id, sku)`. Migration `0003`.
+- **Wording.** The buyer-facing receipt names the owner (`ownerName`, else the business name) instead of "Ada"; the "I've sent your receipt" reply says "the owner".
+
+### Bank-transfer mode (a vendor's `paymentMode: "manual"`)
 
 - **`Order.paymentMethod`** (`"PAYSTACK" | "MANUAL"`) and **`Order.receiptReportedAt`** (ISO string, bank transfers only) are new optional fields. The shared `Order` type has both.
 - **`request_payment` output** in manual mode has no `paymentUrl`; it has `method: "MANUAL"` and `bank: { bankName, accountName, accountNumber }`. The shared type makes `paymentUrl` optional and adds `method` and `bank`.
 - **`POST /orders/{id}/mark-paid`** (new, no body). `200 { order, message? }` where `message` is the buyer's receipt and is absent on a repeat tap. `404` unknown order, `409` for a Paystack order, a cancelled order, or an expired one whose stock is gone.
 - **`POST /simulator/receipts`** (new) takes `{ reference }` and returns `{ order, messages }`. `404` unless it is a simulator order, `409` unless it is a pending bank-transfer order. `POST /simulator/payments` now `409`s for bank-transfer orders.
 - **`report_payment_sent`** is a sixth model tool, offered only in manual mode, and like `escalate_to_vendor` it is not written to `toolCalls`.
-- **Columns.** `orders.payment_method` and `orders.receipt_reported_at` are added to existing SQLite databases on startup.
+- **Columns.** `orders.payment_method` and `orders.receipt_reported_at` (migration `0001`).
 
 New tables: `quotes` (a priced basket the model was shown; `request_payment` turns one into an order). Existing databases get it from `create_all` on startup.

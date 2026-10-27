@@ -114,7 +114,7 @@ def test_the_prompt_and_tools_follow_the_payment_mode(manual: Env) -> None:
     tools = [t["function"]["name"] for t in model.requests[0]["tools"]]
     system = model.requests[0]["messages"][0]["content"]
     assert "report_payment_sent" in tools
-    assert "Ada confirms payments herself" in system and "Paystack" not in system
+    assert "Ada confirms payments personally" in system and "Paystack" not in system
 
 
 def test_in_paystack_mode_there_is_no_manual_tool_or_wording(env: Env) -> None:
@@ -126,11 +126,8 @@ def test_in_paystack_mode_there_is_no_manual_tool_or_wording(env: Env) -> None:
 
 
 @pytest.mark.parametrize("number", ["", "12345", "0123 4567 89 0", "abcdefghij"])
-def test_without_valid_bank_details_no_order_is_created(manual: Env, monkeypatch: pytest.MonkeyPatch, number: str) -> None:
-    from app.config import get_settings
-
-    monkeypatch.setenv("VENDOR_ACCOUNT_NUMBER", number)
-    get_settings.cache_clear()
+def test_without_valid_bank_details_no_order_is_created(manual: Env, number: str) -> None:
+    manual.configure_vendor(bank_account_number=number)
     chat = new_chat(manual, simulator=False, name="Funke")
     sell_loafers(manual, chat, deliver=True, closing=say("Sorry, Ada will send you her account details."))
 
@@ -140,11 +137,8 @@ def test_without_valid_bank_details_no_order_is_created(manual: Env, monkeypatch
     assert manual.texts_to(VENDOR_PHONE) == ["Funke needs you: Bank transfer details are not set up."]
 
 
-def test_spaces_in_the_account_number_are_tolerated(manual: Env, monkeypatch: pytest.MonkeyPatch) -> None:
-    from app.config import get_settings
-
-    monkeypatch.setenv("VENDOR_ACCOUNT_NUMBER", "0123 456 789")
-    get_settings.cache_clear()
+def test_spaces_in_the_account_number_are_tolerated(manual: Env) -> None:
+    manual.configure_vendor(bank_account_number="0123 456 789")
     reply = sell_loafers(manual, new_chat(manual), closing=pay_to_ada)
     assert "0123456789" in reply.text
 
@@ -393,12 +387,12 @@ def test_the_simulator_buyer_can_send_a_receipt(manual: Env, client: TestClient)
     assert manual.graph == []  # a simulator chat never texts anyone
 
 
-def test_simulated_payment_cannot_skip_ada(manual: Env, client: TestClient) -> None:
+def test_simulated_payment_cannot_skip_the_vendor(manual: Env, client: TestClient) -> None:
     reference = manual_sale(manual, simulator=True)
 
     response = client.post("/simulator/payments", json={"reference": reference, "outcome": "SUCCESS"})
 
-    assert response.status_code == 409 and "Ada" in response.json()["error"]["message"]
+    assert response.status_code == 409 and "vendor" in response.json()["error"]["message"]
     assert pending_order(manual).status == OrderStatus.PENDING
 
 

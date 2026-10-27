@@ -154,3 +154,32 @@ class AuthResponse(BaseModel):
 
 class MeResponse(BaseModel):
     vendor: VendorResponse
+
+
+class VendorSettingsResponse(BaseModel):
+    """The shop's own setup. Bank details are the vendor's to see; nothing here ever reaches the model."""
+
+    businessName: str
+    ownerName: str | None = None
+    whatsappPhoneNumberId: str | None = None
+    alertPhone: str | None = None
+    paymentMode: Literal["paystack", "manual"]
+    bankName: str | None = None
+    bankAccountName: str | None = None
+    bankAccountNumber: str | None = None
+    # Can the shop take an order with the payment mode it has chosen? (Bank transfer needs complete bank details.)
+    paymentReady: bool
+    # Can Sowo answer buyers who message this shop's WhatsApp number?
+    whatsappConnected: bool
+
+
+class VendorSettingsUpdate(BaseModel):
+    """Send only what changes. null (or an empty string) clears an optional setting."""
+
+    ownerName: str | None = None
+    whatsappPhoneNumberId: str | None = None
+    alertPhone: str | None = None
+    paymentMode: Literal["paystack", "manual"] | None = None
+    bankName: str | None = None
+    bankAccountName: str | None = None
+    bankAccountNumber: str | None = None

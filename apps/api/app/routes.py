@@ -183,7 +183,7 @@ def send_vendor_reply(
     session.add(message)
     session.commit()
     if not conversation.is_simulator:
-        send_whatsapp_text(conversation.customer_phone, message.text)
+        send_whatsapp_text(vendor.whatsapp_phone_number_id, conversation.customer_phone, message.text)
     return VendorReplyResponse(
         conversation=_conversation_response(session, conversation), message=_message_response(message)
     )

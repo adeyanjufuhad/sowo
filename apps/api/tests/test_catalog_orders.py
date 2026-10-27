@@ -146,7 +146,8 @@ def test_amount_mismatch_is_rejected(tmp_path: Path) -> None:
 
 def test_catalog_result_never_contains_floor_price(tmp_path: Path) -> None:
     with make_session(tmp_path) as session:
-        result = search_catalog(session, "size 43 black loafers")
+        vendor_id = session.scalars(select(Vendor.id)).one()
+        result = search_catalog(session, vendor_id, "size 43 black loafers")
         encoded = json.dumps(result)
 
         assert result["results"] == [

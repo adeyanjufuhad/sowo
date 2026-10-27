@@ -18,6 +18,7 @@ from helpers import (
     PAYSTACK_SECRET,
     VENDOR_PHONE,
     VERIFY_TOKEN,
+    WHATSAPP_NUMBER_ID,
     sign_in_vendor,
 )
 from sqlalchemy import select
@@ -48,6 +49,15 @@ class Env:
             for call in self.graph
             if call["json"].get("to") == phone and call["json"].get("type") == "text"
         ]
+
+    def configure_vendor(self, **fields: Any) -> None:
+        """Change the seeded shop's own settings (payment mode, bank details, alert phone...)."""
+        with self.session() as session:
+            vendor = session.scalar(select(Vendor).where(Vendor.name == "Ada's Footwear"))
+            assert vendor is not None
+            for name, value in fields.items():
+                setattr(vendor, name, value)
+            session.commit()
 
     def conversation(self, phone: str = BUYER_PHONE) -> Conversation:
         with self.session() as session:
@@ -89,6 +99,10 @@ def env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, migrated_template: Path
         loafers = session.scalar(select(Product).where(Product.sku == "LOAF-BLK-43"))
         assert loafers is not None
         loafers.floor_price_kobo = LOAFERS_FLOOR_KOBO
+        ada = session.scalar(select(Vendor).where(Vendor.name == "Ada's Footwear"))
+        assert ada is not None
+        ada.whatsapp_phone_number_id = WHATSAPP_NUMBER_ID  # buyers message Ada on this number; replies go from it
+        ada.alert_phone = VENDOR_PHONE
         session.commit()
 
     # Never read a developer's real .env during tests.
@@ -98,10 +112,8 @@ def env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, migrated_template: Path
         "WHATSAPP_VERIFY_TOKEN": VERIFY_TOKEN,
         "WHATSAPP_APP_SECRET": APP_SECRET,
         "WHATSAPP_ACCESS_TOKEN": "wa-access-token",
-        "WHATSAPP_PHONE_NUMBER_ID": "1555000111",
         "WHATSAPP_ECHO_MODE": "false",
         "PAYSTACK_SECRET_KEY": PAYSTACK_SECRET,
-        "VENDOR_ALERT_PHONE": VENDOR_PHONE,
         "REPLY_DELAY_SECONDS": "0",
         "SIMULATOR_ENABLED": "true",
     }.items():
@@ -151,14 +163,10 @@ def client(env: Env) -> Iterator[TestClient]:
 @pytest.fixture
 def manual(env: Env, monkeypatch: pytest.MonkeyPatch) -> Env:
     """Buyers pay by bank transfer to Ada's account; Ada confirms it in the dashboard."""
-    for name, value in {
-        "PAYMENT_MODE": "manual",
-        "VENDOR_BANK_NAME": "GTBank",
-        "VENDOR_ACCOUNT_NAME": "Ada Okafor",
-        "VENDOR_ACCOUNT_NUMBER": "0123456789",
-        "MANUAL_PAYMENT_HOLD_MINUTES": "180",
-    }.items():
-        monkeypatch.setenv(name, value)
+    env.configure_vendor(
+        payment_mode="manual", bank_name="GTBank", bank_account_name="Ada Okafor", bank_account_number="0123456789"
+    )
+    monkeypatch.setenv("MANUAL_PAYMENT_HOLD_MINUTES", "180")
     get_settings.cache_clear()
     return env
 

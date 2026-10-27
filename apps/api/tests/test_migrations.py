@@ -8,6 +8,7 @@ from alembic import command
 from alembic.autogenerate import compare_metadata
 from alembic.migration import MigrationContext
 from sqlalchemy import inspect, text
+from sqlalchemy.exc import IntegrityError
 
 import app.db as database
 from app.config import get_settings
@@ -126,3 +127,60 @@ def test_conversations_with_no_vendor_get_a_placeholder_owner(engine) -> None:
     with engine.connect() as connection:
         owner = connection.execute(text("SELECT vendor_id FROM conversations")).scalar_one()
         assert connection.execute(text("SELECT name FROM vendors WHERE id = :id"), {"id": owner}).scalar_one() == "My shop"
+
+
+def test_vendor_settings_arrive_with_safe_defaults_and_skus_become_per_vendor(engine) -> None:
+    with engine.begin() as connection:
+        command.upgrade(alembic_config(connection), "0002")
+        connection.execute(text("INSERT INTO vendors (id, name) VALUES ('v-ada', 'Ada''s Footwear')"))
+        connection.execute(
+            text(
+                "INSERT INTO products (id, vendor_id, sku, name, description, price_kobo, floor_price_kobo, stock, image_url) "
+                "VALUES ('p1', 'v-ada', 'LOAF-1', 'Loafers', 'Nice', 4500000, 4000000, 3, '')"
+            )
+        )
+        connection.execute(
+            text(
+                "INSERT INTO conversations (id, vendor_id, customer_phone, customer_name, status, ai_paused, greeted, is_simulator) "
+                "VALUES ('c1', 'v-ada', '2348012345678', 'Funke', 'ACTIVE', 0, 0, 0)"
+            )
+        )
+        connection.execute(
+            text("INSERT INTO offers (id, conversation_id, product_id, amount_kobo, decision) VALUES ('o1', 'c1', 'p1', 4300000, 'ACCEPT')")
+        )
+
+    database.init_db()
+
+    with engine.begin() as connection:
+        vendor = connection.execute(text("SELECT payment_mode, whatsapp_phone_number_id, bank_name FROM vendors")).one()
+        assert tuple(vendor) == ("paystack", None, None)
+        # the rebuilt products table kept its rows, and the rows that point at them
+        assert connection.execute(text("SELECT count(*) FROM products")).scalar_one() == 1
+        assert connection.execute(text("SELECT product_id FROM offers")).scalar_one() == "p1"
+        assert connection.execute(text("PRAGMA foreign_key_check")).fetchall() == []
+
+        connection.execute(text("INSERT INTO vendors (id, name) VALUES ('v-bola', 'Bola''s Bags')"))
+        insert = (
+            "INSERT INTO products (id, vendor_id, sku, name, description, price_kobo, floor_price_kobo, stock, image_url) "
+            "VALUES (:id, :vendor, 'LOAF-1', 'Bag', 'Nice', 100, 50, 1, '')"
+        )
+        connection.execute(text(insert), {"id": "p2", "vendor": "v-bola"})  # same sku, another vendor: fine
+    with pytest.raises(IntegrityError), engine.begin() as connection:
+        connection.execute(text(insert), {"id": "p3", "vendor": "v-bola"})  # same sku twice in one catalog: not
+
+
+def test_the_postgres_upgrade_swaps_the_sku_constraint(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("DATABASE_URL", "postgresql://user:pw@db:5432/sowo")
+    get_settings.cache_clear()
+    out = StringIO()
+    config = alembic_config()
+    config.output_buffer = out
+    try:
+        command.upgrade(config, "0002:0003", sql=True)
+    finally:
+        get_settings.cache_clear()
+
+    sql = out.getvalue()
+    assert "ALTER TABLE products DROP CONSTRAINT products_sku_key" in sql
+    assert "ALTER TABLE products ADD CONSTRAINT uq_products_vendor_id_sku UNIQUE (vendor_id, sku)" in sql
+    assert "ALTER TABLE vendors ADD COLUMN payment_mode VARCHAR(16) DEFAULT 'paystack' NOT NULL" in sql
