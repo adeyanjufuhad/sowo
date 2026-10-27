@@ -86,6 +86,21 @@ Everything comes from environment variables or `.env`. See [`.env.example`](.env
 | `ENVIRONMENT` | `production` | `development` allows the demo commands (`app.seed`, `app.seed_demo`, `app.chat_cli`). Leave it unset on a real deployment |
 | `SIMULATOR_ENABLED` | `false` | The `/simulator/*` endpoints behind the web app's `/try` demo page. They have no sign-in, so keep them off where real buyers are |
 | `CORS_ORIGINS` | `http://localhost:3000` | Comma-separated origins allowed to call the API |
+| `LOG_FORMAT`, `LOG_LEVEL` | `json`, `INFO` | `json` is one object per line for a log host, `text` reads better in a terminal |
+| `RATE_LIMIT_ENABLED` | `true` | Switch for every rate limit below |
+| `RATE_LIMIT_AUTH_PER_MINUTE` | `20` | Sign-ups plus sign-in attempts per client address per minute |
+| `RATE_LIMIT_WEBHOOKS_PER_MINUTE` | `600` | WhatsApp and Paystack webhook calls per client address per minute |
+| `LOGIN_MAX_FAILURES` | `10` | Wrong passwords allowed per email address in 15 minutes. A right password clears the count |
+| `CLIENT_IP_HEADER` | _(empty)_ | Header holding the real client address, such as `x-forwarded-for`. Set it only when the API can be reached through a trusted proxy alone, otherwise callers can spoof it |
+
+## Running it in production
+
+## Running it in production
+
+- **Health and readiness.** `GET /health` says the process is up and never touches the database, so a liveness probe can't keep Neon's compute awake. `GET /ready` runs `SELECT 1` and answers `503 {"status":"unavailable"}` when the database can't be reached (the log line names the error class only, never the connection string). Point the host's *readiness* check at `/ready` and its *liveness* check at `/health`; a readiness probe every few seconds keeps a serverless database awake, so use a long interval, or none.
+- **Logs.** One line per request: method, the route pattern (`/conversations/{conversation_id}/messages`, never the real URL, so ids, phone numbers and query strings stay out), status and milliseconds, with a `request_id`. Send `X-Request-ID` to choose it (letters, digits, `.`, `_`, `-`, up to 64 characters); otherwise one is made up. It is returned in the `X-Request-ID` response header and attached to every log line written while handling the request. Anything that looks like a phone number (seven or more digits) is cut to `***` plus its last three digits, and bearer tokens and Paystack secret keys are masked. Uvicorn's own access log is turned off because it prints query strings, which carry the WhatsApp verify token. Successful `/health` and `/ready` calls aren't logged.
+- **Rate limits.** Sign-up and sign-in share an allowance per client address, the webhooks share another (checked before the signature, so an unsigned flood is cheap to refuse), and failed sign-ins are also counted per email so a guesser can't spread attempts over addresses. Refusals are `429 { "error": { "code": "RATE_LIMITED" } }` with a `Retry-After` header. The counters are in each process's memory: with several replicas each enforces its own limit, and they reset on restart. Use the host's edge limits if you need a shared one. The web app forwards the visitor's address as `x-forwarded-for`; without `CLIENT_IP_HEADER` the API sees every sign-in coming from the web server, so the per-address limit would be shared by all visitors.
+- **Unexpected errors** are logged with a traceback and answered `500` with a generic message.
 
 ## Accounts and sign-in
 

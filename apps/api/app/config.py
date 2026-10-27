@@ -34,6 +34,21 @@ class Settings(BaseSettings):
     # deployment that serves real buyers never exposes them by accident.
     simulator_enabled: bool = False
 
+    # Logging: "json" is one object per line for a log host; "text" reads better in a terminal.
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR"] = "INFO"
+    log_format: Literal["json", "text"] = "json"
+
+    # Rate limits per client address, per minute, counted in each process's memory. Sign-up and sign-in are the
+    # routes worth brute-forcing; webhooks get a generous limit so Meta and Paystack bursts are never refused, but
+    # an unsigned flood can't keep the server busy. Failed sign-ins are also limited per email address.
+    rate_limit_enabled: bool = True
+    rate_limit_auth_per_minute: int = Field(default=20, ge=1)
+    rate_limit_webhooks_per_minute: int = Field(default=600, ge=1)
+    login_max_failures: int = Field(default=10, ge=1)
+    # Behind a trusted proxy every request comes from the proxy's address. Name the header that carries the real
+    # one (for example x-forwarded-for) ONLY when the API can be reached through that proxy alone.
+    client_ip_header: str = ""
+
     # Qwen3 through Ollama
     ollama_timeout_seconds: float = Field(default=120.0, gt=0)
     ollama_temperature: float = Field(default=0.3, ge=0, le=2)

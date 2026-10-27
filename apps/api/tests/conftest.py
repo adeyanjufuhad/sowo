@@ -172,6 +172,16 @@ def manual(env: Env, monkeypatch: pytest.MonkeyPatch) -> Env:
 
 
 @pytest.fixture(autouse=True)
+def fresh_rate_limits() -> Iterator[None]:
+    """The limiter counts in memory, so one test's requests must not use up the next test's allowance."""
+    from app.ratelimit import limiter
+
+    limiter.reset()
+    yield
+    limiter.reset()
+
+
+@pytest.fixture(autouse=True)
 def cheap_password_hashing(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
     """Argon2 is deliberately slow. Tests use the same algorithm with minimal cost so the suite stays quick."""
     from argon2 import PasswordHasher

@@ -31,6 +31,10 @@ async function forward(request: NextRequest, { params }: Context) {
   const contentType = request.headers.get("content-type");
   if (contentType) headers.set("content-type", contentType);
   if (token) headers.set("authorization", `Bearer ${token}`);
+  // Tell the API who the visitor is, or it would see every sign-in coming from this server. It only uses this when
+  // its CLIENT_IP_HEADER is set, which it should be only when this server is the sole way to reach it.
+  const visitor = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || request.headers.get("x-real-ip");
+  if (visitor) headers.set("x-forwarded-for", visitor);
 
   let upstream: Response;
   try {

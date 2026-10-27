@@ -29,7 +29,7 @@ Where the real backend differs from, or adds to, `docs/api-contract.md` (for its
 
 - **Every dashboard endpoint now needs `Authorization: Bearer <sessionToken>`** and returns only the signed-in vendor's data: `GET /conversations`, `GET /conversations/:id/messages`, `POST /conversations/:id/pause`, `.../resume`, `.../messages`, `GET /orders`, `GET /products`, `POST /orders/:id/mark-paid`. Another vendor's id is a `404`. Without a valid token the response is `401` with `{ "error": { "code": "UNAUTHORIZED", "message": "Sign in to continue" } }` and a `WWW-Authenticate: Bearer` header. `ApiError.error.code` gains `"UNAUTHORIZED"`.
 - **New:** `POST /auth/signup` `{ email, password, businessName }` (`201`, `400` with a readable message, `409` for a taken email or business name), `POST /auth/login` `{ email, password }` (`401` "Incorrect email or password" for both a wrong password and an unknown email), `POST /auth/logout` (revokes the token used), `GET /auth/me`. The sign-up and login responses are `{ vendor: { id, name, email }, sessionToken, expiresAt }`. The token is shown once; the API stores only its hash.
-- **Not authenticated:** `/health`, `/webhooks/*` (signatures) and `/simulator/*` (gated by `SIMULATOR_ENABLED`). Simulator chats belong to the demo shop (`SIMULATOR_VENDOR_NAME`).
+- **Not authenticated:** `/health`, `/ready`, `/webhooks/*` (signatures) and `/simulator/*` (gated by `SIMULATOR_ENABLED`). Simulator chats belong to the demo shop (`SIMULATOR_VENDOR_NAME`).
 - **Tables and columns.** `vendors.email`, `vendors.password_hash` and `vendors.created_at`; new `vendor_sessions`; `conversations.vendor_id` (not null, existing rows go to the first vendor by name). Migration `0002`.
 
 ### Shop settings and several vendors
@@ -57,3 +57,10 @@ Where the real backend differs from, or adds to, `docs/api-contract.md` (for its
 - **Columns.** `orders.payment_method` and `orders.receipt_reported_at` (migration `0001`).
 
 New tables: `quotes` (a priced basket the model was shown; `request_payment` turns one into an order). Existing databases get it from `create_all` on startup.
+
+### Production hardening
+
+- **`GET /ready`** (new) answers `200 { "status": "ready" }` when the database responds and `503 { "status": "unavailable" }` otherwise. `GET /health` is unchanged and never touches the database.
+- **`429`** with `{ "error": { "code": "RATE_LIMITED", "message": ... } }` and a `Retry-After` header (seconds) can come from `POST /auth/signup`, `POST /auth/login` and `/webhooks/*`. `ApiError.error.code` gains `"RATE_LIMITED"`. After too many wrong passwords for one email, `POST /auth/login` is `429` even for the right password until the 15-minute window passes.
+- **Every response carries `X-Request-ID`.** Send your own to correlate logs.
+- **Unexpected errors** are `500` with `{ "error": { "code": "INTERNAL", "message": "Something went wrong on our side" } }`.
