@@ -3,3 +3,8 @@
 *.db
 __pycache__/
 *.py[cod]
+*.db-shm
+*.db-wal
+*.egg-info/
+.pytest-tmp/
+.ruff_cache/
