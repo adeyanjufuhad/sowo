@@ -11,6 +11,9 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
     database_url: str = "sqlite:///./sowo.db"
+    # Neon (and other hosts with a connection pooler): the app uses the pooled DATABASE_URL, but migrations should
+    # not run through PgBouncer, so give them the direct (unpooled) URL here. Empty means "use DATABASE_URL".
+    database_url_direct: str = ""
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "qwen3:8b"
     whatsapp_verify_token: str = ""

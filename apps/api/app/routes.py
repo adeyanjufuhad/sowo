@@ -30,6 +30,7 @@ from app.schemas import (
     VendorReplyRequest,
     VendorReplyResponse,
 )
+from app.services.orders import expire_holds
 from app.services.whatsapp import send_whatsapp_text
 
 router = APIRouter()
@@ -220,6 +221,8 @@ def _order_response(session: Session, order: Order) -> OrderResponse:
 
 @router.get("/orders", response_model=ListOrdersResponse, response_model_exclude_none=True)
 def list_orders(session: SessionDependency) -> ListOrdersResponse:
+    expire_holds(session)  # release overdue holds now, since nothing polls for them in the background
+    session.commit()
     orders = list(session.scalars(select(Order).order_by(Order.created_at.desc(), Order.id.desc())))
     return ListOrdersResponse(orders=[_order_response(session, order) for order in orders])
 

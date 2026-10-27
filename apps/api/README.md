@@ -40,6 +40,8 @@ alembic revision --autogenerate -m "what changed"     # after editing app/models
 alembic upgrade head --sql                            # print the SQL instead of running it
 ```
 
+On Neon, use the pooled URL for `DATABASE_URL` and the direct one for `DATABASE_URL_DIRECT`. The app's connections are built for PgBouncer (no prepared statements, pre-ping, recycled every 5 minutes), and it never polls the database in the background, so Neon's compute can suspend when nobody is using it. Overdue stock holds are released when stock is read, when an order is placed and when orders are listed.
+
 `tests/test_migrations.py` fails if a model changes without a migration. A database created before Alembic existed (tables but no `alembic_version`) is refused with a message: delete a development one, or run `alembic stamp head` if its schema is already current.
 
 ### Try Qwen3 without WhatsApp or Paystack
@@ -56,7 +58,8 @@ Everything comes from environment variables or `.env`. See [`.env.example`](.env
 
 | Variable | Default | What it does |
 | --- | --- | --- |
-| `DATABASE_URL` | `sqlite:///./sowo.db` | SQLite in development, Postgres in production (`postgresql://user:pass@host:5432/sowo`; `postgres://` works too) |
+| `DATABASE_URL` | `sqlite:///./sowo.db` | SQLite in development, Postgres in production (`postgresql://user:pass@host:5432/sowo`; `postgres://` works too). On Neon, the pooled URL |
+| `DATABASE_URL_DIRECT` | | Neon's unpooled URL, used only for migrations (PgBouncer isn't good for DDL). Empty means use `DATABASE_URL` |
 | `OLLAMA_BASE_URL`, `OLLAMA_MODEL` | `http://localhost:11434`, `qwen3:8b` | Where Qwen3 runs and which model to use |
 | `OLLAMA_TIMEOUT_SECONDS`, `OLLAMA_TEMPERATURE` | `120`, `0.3` | Model request timeout and sampling temperature |
 | `AGENT_MAX_TOOL_ROUNDS` | `6` | Tool calls the model may chain in one reply |

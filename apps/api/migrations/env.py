@@ -16,6 +16,11 @@ if config.config_file_name is not None:
 target_metadata = Base.metadata
 
 
+def migration_url() -> str:
+    settings = get_settings()
+    return settings.database_url_direct or settings.database_url
+
+
 def _configure(connection: Connection) -> None:
     context.configure(
         connection=connection,
@@ -29,7 +34,7 @@ def _configure(connection: Connection) -> None:
 def run_migrations_offline() -> None:
     """`alembic upgrade head --sql`: print the SQL for a database instead of running it."""
     context.configure(
-        url=get_settings().database_url,
+        url=migration_url(),
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -46,7 +51,7 @@ def run_migrations_online() -> None:
             context.run_migrations()
         return
 
-    engine = create_database_engine(get_settings().database_url)
+    engine = create_database_engine(migration_url())
     with engine.connect() as connection:
         _configure(connection)
         with context.begin_transaction():

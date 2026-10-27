@@ -1,5 +1,6 @@
 from collections.abc import Generator
 from pathlib import Path
+from typing import Any
 
 from alembic import command
 from alembic.config import Config
@@ -34,8 +35,17 @@ def create_database_engine(database_url: str) -> Engine:
             cursor.close()
 
         return engine
-    # pre_ping drops connections the database closed while the app was idle.
-    return create_engine(database_url, pool_pre_ping=True)
+    options: dict[str, Any] = {
+        # Drop connections the database (or a pooler) closed while the app was idle, and retire old ones, because
+        # a serverless Postgres such as Neon suspends after a few idle minutes.
+        "pool_pre_ping": True,
+        "pool_recycle": 300,
+    }
+    if database_url.startswith("postgresql+psycopg"):
+        # PgBouncer in transaction mode hands each transaction to a different server connection, so psycopg's
+        # server-side prepared statements would collide. Never prepare them.
+        options["connect_args"] = {"prepare_threshold": None}
+    return create_engine(database_url, **options)
 
 
 engine = create_database_engine(get_settings().database_url)
@@ -56,7 +66,19 @@ def init_db() -> None:
     """Bring the database up to the latest schema. Safe to call on every start."""
     from app import models  # noqa: F401
 
-    with engine.begin() as connection:
+    settings = get_settings()
+    # Migrations take the direct URL when there is one (a pooler in the middle is fine for the app, not for DDL).
+    use_direct = bool(settings.database_url_direct) and engine.dialect.name != "sqlite"
+    target = create_database_engine(settings.database_url_direct) if use_direct else engine
+    try:
+        _migrate(target)
+    finally:
+        if use_direct:
+            target.dispose()
+
+
+def _migrate(target: Engine) -> None:
+    with target.begin() as connection:
         tables = set(inspect(connection).get_table_names())
         if "alembic_version" not in tables and tables:
             raise RuntimeError(
