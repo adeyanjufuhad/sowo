@@ -10,9 +10,12 @@ const needsPacking = (order: Order) => order.paymentStatus === "PAID" && order.f
 export function OrdersView({ orders, now }: { orders: Order[]; now: number }) {
   if (orders.length === 0) {
     return (
-      <div className="rounded-2xl bg-card px-6 py-16 text-center text-sm text-muted ring-1 ring-line">
-        <Receipt aria-hidden className="mx-auto mb-3 size-6" strokeWidth={1.5} />
-        No orders yet. They appear here when Sowo sends a payment link.
+      <div className="rounded-3xl border border-line bg-card px-6 py-20 text-center text-sm text-muted shadow-sm">
+        <span className="mx-auto mb-4 grid size-14 place-items-center rounded-2xl bg-paper text-accent-strong ring-1 ring-line">
+          <Receipt aria-hidden className="size-6" strokeWidth={1.5} />
+        </span>
+        <p className="font-display text-lg font-semibold text-ink">No orders yet</p>
+        <p className="mt-2">They&apos;ll appear here when Sowo sends a payment link.</p>
       </div>
     );
   }
@@ -22,7 +25,7 @@ export function OrdersView({ orders, now }: { orders: Order[]; now: number }) {
       {/* Phones: cards */}
       <ul className="space-y-3 md:hidden">
         {orders.map((o) => (
-          <li key={o.id} className={cn("rounded-2xl bg-card p-4 ring-1 ring-line", needsPacking(o) && "ring-2 ring-accent-strong")}>
+          <li key={o.id} className={cn("rounded-3xl border border-line bg-card p-4 shadow-sm", needsPacking(o) && "border-accent/40 bg-accent-wash/25 ring-1 ring-accent/20")}>
             <div className="flex items-baseline justify-between gap-3">
               <p className="font-semibold">
                 {orderNo(o)} · {o.customerName}
@@ -43,10 +46,10 @@ export function OrdersView({ orders, now }: { orders: Order[]; now: number }) {
       </ul>
 
       {/* Larger screens: table */}
-      <div className="hidden overflow-x-auto rounded-2xl bg-card ring-1 ring-line md:block">
+      <div className="hidden overflow-x-auto rounded-3xl border border-line/90 bg-card shadow-[0_20px_60px_-40px_rgba(61,44,31,0.35)] md:block">
         <table className="w-full text-left text-sm">
           <caption className="sr-only">Orders, newest first</caption>
-          <thead className="border-b border-line text-xs text-muted">
+          <thead className="border-b border-line bg-paper/60 text-[11px] tracking-[0.08em] text-muted uppercase">
             <tr>
               <th scope="col" className="px-4 py-3 font-medium">Order</th>
               <th scope="col" className="px-4 py-3 font-medium">Customer</th>
@@ -60,7 +63,7 @@ export function OrdersView({ orders, now }: { orders: Order[]; now: number }) {
           </thead>
           <tbody className="divide-y divide-line">
             {orders.map((o) => (
-              <tr key={o.id} className={cn(needsPacking(o) && "bg-accent-wash/50")}>
+              <tr key={o.id} className={cn("transition-colors hover:bg-paper/55", needsPacking(o) && "bg-accent-wash/35 hover:bg-accent-wash/50")}>
                 <td className="px-4 py-3 font-mono">{orderNo(o)}</td>
                 <td className="px-4 py-3 font-medium whitespace-nowrap">{o.customerName}</td>
                 <td className="px-4 py-3 text-ink-soft">

@@ -49,16 +49,16 @@ export function ChatList({
               onClick={() => onSelect(c.id)}
               aria-current={selected ? "true" : undefined}
               className={cn(
-                "flex w-full items-start gap-3 px-4 py-3.5 text-left transition-colors",
-                selected ? "bg-paper-deep" : urgent ? "bg-accent-wash/70 hover:bg-accent-wash" : "hover:bg-paper",
+                "group flex w-full items-start gap-3 px-4 py-4 text-left transition-all",
+                selected ? "bg-paper-deep/80" : urgent ? "bg-accent-wash/55 hover:bg-accent-wash/80" : "hover:bg-paper/70",
                 urgent && "shadow-[inset_3px_0_0_var(--accent-strong)]",
               )}
             >
               <span
                 aria-hidden
                 className={cn(
-                  "grid size-10 shrink-0 place-items-center rounded-full text-sm font-semibold",
-                  urgent ? "bg-accent-strong text-white" : "bg-paper-deep text-ink-soft",
+                  "grid size-11 shrink-0 place-items-center rounded-2xl text-sm font-semibold shadow-sm transition-transform group-hover:-rotate-2",
+                  urgent ? "bg-accent-strong text-white" : "bg-paper-deep text-ink-soft ring-1 ring-line/70",
                 )}
               >
                 {initials(c.customerName)}
@@ -151,7 +151,7 @@ export function ChatThread({
   return (
     <section aria-label={`Chat with ${current.customerName}`} className="flex h-full min-h-0 flex-col">
       {/* Thread header */}
-      <div className="flex items-center gap-3 border-b border-line bg-card px-3 py-3 sm:px-4">
+      <div className="flex items-center gap-3 border-b border-line bg-card/95 px-3 py-3.5 backdrop-blur-sm sm:px-5">
         <button
           type="button"
           onClick={onBack}
@@ -205,7 +205,7 @@ export function ChatThread({
       ) : null}
 
       {/* Messages */}
-      <ol ref={listRef} aria-label="Messages" aria-live="polite" className="min-h-0 flex-1 space-y-2.5 overflow-y-auto bg-paper px-3 py-4 sm:px-5">
+      <ol ref={listRef} aria-label="Messages" aria-live="polite" className="min-h-0 flex-1 space-y-3 overflow-y-auto bg-[radial-gradient(circle_at_20%_0%,rgba(226,167,46,0.06),transparent_35%),var(--paper)] px-3 py-5 sm:px-5">
         {data === null && !loadError ? (
           <li className="space-y-2.5" aria-hidden>
             {[60, 45, 70].map((w, i) => (
@@ -220,9 +220,9 @@ export function ChatThread({
               <div
                 className={cn(
                   "max-w-[85%] rounded-2xl px-3.5 py-2 text-[15px] leading-snug whitespace-pre-line",
-                  fromBuyer && "rounded-bl-md bg-card ring-1 ring-line",
-                  m.sender === "AI" && "rounded-br-md bg-accent-wash",
-                  m.sender === "VENDOR" && "rounded-br-md bg-accent-strong text-white",
+                  fromBuyer && "rounded-bl-md bg-card shadow-sm ring-1 ring-line/80",
+                  m.sender === "AI" && "rounded-br-md border border-accent/10 bg-accent-wash/85 shadow-sm",
+                  m.sender === "VENDOR" && "rounded-br-md bg-accent-strong text-white shadow-md shadow-accent-strong/10",
                 )}
               >
                 <span className={cn("mb-0.5 block text-xs font-semibold", m.sender === "VENDOR" ? "text-white/80" : fromBuyer ? "text-muted" : "text-accent-strong")}>

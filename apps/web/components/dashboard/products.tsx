@@ -19,16 +19,17 @@ function Stock({ count }: { count: number }) {
 export function ProductsView({ products }: { products: Product[] }) {
   return (
     <div className="space-y-3">
-      <p className="flex items-start gap-2 rounded-2xl bg-card px-4 py-3 text-sm text-ink-soft ring-1 ring-line">
-        <EyeOff aria-hidden className="mt-0.5 size-4 shrink-0 text-accent-strong" strokeWidth={1.75} />
-        Floor prices are visible to you only. Sowo&apos;s server uses them to haggle, but they never reach buyers or the
-        model.
+      <p className="flex items-start gap-3 rounded-2xl border border-indigo/10 bg-indigo/[0.045] px-4 py-3.5 text-sm leading-6 text-ink-soft">
+        <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-indigo/10 text-indigo">
+          <EyeOff aria-hidden className="size-4" strokeWidth={1.75} />
+        </span>
+        Floor prices are visible to you only. Sowo&apos;s server uses them to haggle, but they never reach buyers or the model.
       </p>
 
       {/* Phones: cards */}
       <ul className="grid gap-3 sm:grid-cols-2 md:hidden">
         {products.map((p) => (
-          <li key={p.id} className="flex gap-3 rounded-2xl bg-card p-3 ring-1 ring-line">
+          <li key={p.id} className="flex gap-3 rounded-3xl border border-line bg-card p-4 shadow-sm">
             <img src={p.imageUrl} alt="" width={64} height={64} className="size-16 shrink-0 rounded-xl" />
             <div className="min-w-0 flex-1">
               <p className="truncate font-semibold">{p.name}</p>
@@ -52,10 +53,10 @@ export function ProductsView({ products }: { products: Product[] }) {
       </ul>
 
       {/* Larger screens: table */}
-      <div className="hidden overflow-x-auto rounded-2xl bg-card ring-1 ring-line md:block">
+      <div className="hidden overflow-x-auto rounded-3xl border border-line/90 bg-card shadow-[0_20px_60px_-40px_rgba(61,44,31,0.35)] md:block">
         <table className="w-full text-left text-sm">
           <caption className="sr-only">Products with price, floor price and stock</caption>
-          <thead className="border-b border-line text-xs text-muted">
+          <thead className="border-b border-line bg-paper/60 text-[11px] tracking-[0.08em] text-muted uppercase">
             <tr>
               <th scope="col" className="px-4 py-3 font-medium">Product</th>
               <th scope="col" className="px-4 py-3 font-medium">SKU</th>
@@ -70,7 +71,7 @@ export function ProductsView({ products }: { products: Product[] }) {
           </thead>
           <tbody className="divide-y divide-line">
             {products.map((p) => (
-              <tr key={p.id}>
+              <tr key={p.id} className="transition-colors hover:bg-paper/55">
                 <td className="px-4 py-2.5">
                   <span className="flex items-center gap-3">
                     <img src={p.imageUrl} alt="" width={40} height={40} className="size-10 rounded-lg" />
