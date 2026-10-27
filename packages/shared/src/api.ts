@@ -305,6 +305,40 @@ export interface SessionResponse {
   vendor: AuthVendor;
 }
 
+/** How a shop's buyers pay: a Paystack link, or a transfer into the vendor's own bank account. */
+export type PaymentMode = "paystack" | "manual";
+
+/** The signed-in vendor's own setup. The API stores these per vendor, so many shops can share one deployment. */
+export interface VendorSettings {
+  businessName: string;
+  /** What buyers call the person behind the shop. Falls back to the business name. */
+  ownerName: string | null;
+  /** Meta's id for the vendor's WhatsApp business number. It is how a buyer's message finds this vendor. */
+  whatsappPhoneNumberId: string | null;
+  /** The vendor's own phone, for "pack this" and "needs you" alerts. */
+  alertPhone: string | null;
+  paymentMode: PaymentMode;
+  bankName: string | null;
+  bankAccountName: string | null;
+  /** Ten digits. */
+  bankAccountNumber: string | null;
+  /** Can the shop take an order with its chosen payment mode? */
+  paymentReady: boolean;
+  /** Can Sowo answer buyers who message this shop's number? */
+  whatsappConnected: boolean;
+}
+
+/** Send only what changes. null or "" clears an optional setting. */
+export interface VendorSettingsUpdate {
+  ownerName?: string | null;
+  whatsappPhoneNumberId?: string | null;
+  alertPhone?: string | null;
+  paymentMode?: PaymentMode;
+  bankName?: string | null;
+  bankAccountName?: string | null;
+  bankAccountNumber?: string | null;
+}
+
 export interface ApiError {
   error: {
     code: "BAD_REQUEST" | "UNAUTHORIZED" | "NOT_FOUND" | "CONFLICT" | "INTERNAL";
@@ -316,7 +350,7 @@ export interface ApiError {
 /* Endpoints                                                                  */
 /* -------------------------------------------------------------------------- */
 
-type Method = "GET" | "POST";
+type Method = "GET" | "POST" | "PATCH";
 
 interface Endpoint<Req, Res> {
   method: Method;
@@ -364,6 +398,9 @@ export const endpoints = {
   login: () => endpoint<LoginRequest, SessionResponse>("POST", "/auth/login"),
   logout: () => endpoint<void, { ok: boolean }>("POST", "/auth/logout"),
   me: () => endpoint<void, SessionResponse>("GET", "/auth/me"),
+  getVendorSettings: () => endpoint<void, VendorSettings>("GET", "/vendor/settings"),
+  updateVendorSettings: () =>
+    endpoint<VendorSettingsUpdate, VendorSettings>("PATCH", "/vendor/settings"),
   /** Bank-transfer mode: the simulator buyer says they have sent the money. */
   sendSimulatorReceipt: () =>
     endpoint<SimulatorReceiptRequest, SimulatorReceiptResponse>(

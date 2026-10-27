@@ -67,4 +67,4 @@ async function forward(request: NextRequest, { params }: Context) {
   return response;
 }
 
-export { forward as GET, forward as POST };
+export { forward as GET, forward as PATCH, forward as POST };

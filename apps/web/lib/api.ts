@@ -15,6 +15,7 @@ import {
   type SimulatorPaymentRequest,
   type SignupRequest,
   type SimulatorReceiptRequest,
+  type VendorSettingsUpdate,
 } from "@sowo/shared";
 import { ApiRequestError } from "./api-error";
 import { resetLocalMock, runLocal } from "./mock/local";
@@ -79,6 +80,8 @@ const httpApi = {
   login: (request: LoginRequest) => call(endpoints.login(), request),
   logout: () => call(endpoints.logout()),
   me: () => call(endpoints.me()),
+  getVendorSettings: () => call(endpoints.getVendorSettings()),
+  updateVendorSettings: (request: VendorSettingsUpdate) => call(endpoints.updateVendorSettings(), request),
 };
 
 export type SowoApi = typeof httpApi;
@@ -115,6 +118,8 @@ const localApi: SowoApi = {
   login: needsBackend,
   logout: needsBackend,
   me: needsBackend,
+  getVendorSettings: needsBackend,
+  updateVendorSettings: needsBackend,
 };
 
 export const api: SowoApi = USING_MOCK ? localApi : httpApi;

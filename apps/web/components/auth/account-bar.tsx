@@ -1,6 +1,7 @@
 "use client";
 
-import { LogOut } from "lucide-react";
+import { LogOut, Settings } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api, USING_MOCK } from "@/lib/api";
@@ -35,6 +36,12 @@ export function AccountBar() {
     <div className="border-b border-line bg-paper-deep/50">
       <div className="mx-auto flex h-9 max-w-7xl items-center justify-end gap-3 px-4 text-xs text-ink-soft sm:px-6">
         {name ? <span>Signed in as <span className="font-medium text-ink">{name}</span></span> : null}
+        <Link
+          href="/dashboard/settings"
+          className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-medium text-ink-soft transition-colors hover:bg-paper-deep hover:text-ink"
+        >
+          <Settings aria-hidden className="size-3.5" strokeWidth={2} /> Shop settings
+        </Link>
         <button
           type="button"
           onClick={signOut}
