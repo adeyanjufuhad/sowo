@@ -1,6 +1,9 @@
 from collections.abc import Generator
+from pathlib import Path
 
-from sqlalchemy import Engine, create_engine, event, inspect, text
+from alembic import command
+from alembic.config import Config
+from sqlalchemy import Connection, Engine, create_engine, event, inspect, text
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 from app.config import get_settings
@@ -10,10 +13,18 @@ class Base(DeclarativeBase):
     pass
 
 
+def normalize_database_url(database_url: str) -> str:
+    """Hosts hand out `postgres://` or `postgresql://`; SQLAlchemy needs the driver we ship (psycopg 3)."""
+    for prefix in ("postgres://", "postgresql://"):
+        if database_url.startswith(prefix):
+            return "postgresql+psycopg://" + database_url[len(prefix) :]
+    return database_url
+
+
 def create_database_engine(database_url: str) -> Engine:
-    connect_args = {"check_same_thread": False} if database_url.startswith("sqlite") else {}
-    engine = create_engine(database_url, connect_args=connect_args)
+    database_url = normalize_database_url(database_url)
     if database_url.startswith("sqlite"):
+        engine = create_engine(database_url, connect_args={"check_same_thread": False})
 
         @event.listens_for(engine, "connect")
         def enable_sqlite_wal(dbapi_connection: object, _: object) -> None:
@@ -22,40 +33,40 @@ def create_database_engine(database_url: str) -> Engine:
             cursor.execute("PRAGMA foreign_keys=ON")
             cursor.close()
 
-    return engine
+        return engine
+    # pre_ping drops connections the database closed while the app was idle.
+    return create_engine(database_url, pool_pre_ping=True)
 
 
 engine = create_database_engine(get_settings().database_url)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
+MIGRATIONS_DIR = Path(__file__).resolve().parent.parent / "migrations"
+
+
+def alembic_config(connection: Connection | None = None) -> Config:
+    config = Config()
+    config.set_main_option("script_location", str(MIGRATIONS_DIR))
+    if connection is not None:
+        config.attributes["connection"] = connection
+    return config
+
 
 def init_db() -> None:
+    """Bring the database up to the latest schema. Safe to call on every start."""
     from app import models  # noqa: F401
 
-    Base.metadata.create_all(bind=engine)
-    if engine.dialect.name == "sqlite":
-        _add_sqlite_columns_if_missing()
-
-
-def _add_sqlite_columns_if_missing() -> None:
-    """Apply the small additive schema changes needed by the local Stage 1 database."""
-    additions = {
-        "products": {"image_url": "VARCHAR(500) NOT NULL DEFAULT ''"},
-        "conversations": {"customer_name": "VARCHAR(120) NOT NULL DEFAULT ''"},
-        "orders": {
-            "delivery_area": "VARCHAR(100)",
-            "created_at": "DATETIME",
-            "payment_method": "VARCHAR(8) NOT NULL DEFAULT 'PAYSTACK'",
-            "receipt_reported_at": "DATETIME",
-        },
-    }
-    inspector = inspect(engine)
     with engine.begin() as connection:
-        for table_name, columns in additions.items():
-            existing = {column["name"] for column in inspector.get_columns(table_name)}
-            for column_name, definition in columns.items():
-                if column_name not in existing:
-                    connection.execute(text(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {definition}"))
+        tables = set(inspect(connection).get_table_names())
+        if "alembic_version" not in tables and tables:
+            raise RuntimeError(
+                "This database has tables but no migration history (it was made before Alembic). "
+                "If its schema is current, run `alembic stamp head`; otherwise start from an empty database."
+            )
+        if connection.dialect.name == "postgresql":
+            # Two replicas starting together must not both run the migrations; the lock ends with the transaction.
+            connection.execute(text("SELECT pg_advisory_xact_lock(7403918)"))
+        command.upgrade(alembic_config(connection), "head")
 
 
 def get_db() -> Generator[Session, None, None]:

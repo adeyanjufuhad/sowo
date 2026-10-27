@@ -30,6 +30,18 @@ uvicorn app.main:app --reload                         # http://localhost:8000/he
 
 Then point the web app at it: set `NEXT_PUBLIC_API_URL=http://localhost:8000` in `apps/web/.env.local`.
 
+### Database and migrations
+
+The schema is managed by [Alembic](https://alembic.sqlalchemy.org) (`migrations/`). The app brings an empty or older database up to date every time it starts, so a fresh `uvicorn` just works. You can also run it yourself, which is what to do as a release step when several replicas share one Postgres:
+
+```bash
+alembic upgrade head                                  # apply every migration
+alembic revision --autogenerate -m "what changed"     # after editing app/models.py; read the result before committing
+alembic upgrade head --sql                            # print the SQL instead of running it
+```
+
+`tests/test_migrations.py` fails if a model changes without a migration. A database created before Alembic existed (tables but no `alembic_version`) is refused with a message: delete a development one, or run `alembic stamp head` if its schema is already current.
+
 ### Try Qwen3 without WhatsApp or Paystack
 
 ```bash
@@ -44,7 +56,7 @@ Everything comes from environment variables or `.env`. See [`.env.example`](.env
 
 | Variable | Default | What it does |
 | --- | --- | --- |
-| `DATABASE_URL` | `sqlite:///./sowo.db` | SQLAlchemy URL. SQLite in development. |
+| `DATABASE_URL` | `sqlite:///./sowo.db` | SQLite in development, Postgres in production (`postgresql://user:pass@host:5432/sowo`; `postgres://` works too) |
 | `OLLAMA_BASE_URL`, `OLLAMA_MODEL` | `http://localhost:11434`, `qwen3:8b` | Where Qwen3 runs and which model to use |
 | `OLLAMA_TIMEOUT_SECONDS`, `OLLAMA_TEMPERATURE` | `120`, `0.3` | Model request timeout and sampling temperature |
 | `AGENT_MAX_TOOL_ROUNDS` | `6` | Tool calls the model may chain in one reply |
