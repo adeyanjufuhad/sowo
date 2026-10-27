@@ -2,7 +2,7 @@
 
 **Sowo dey sell while you sleep.**
 
-An AI sales assistant for Nigerian vendors who sell on WhatsApp. When a buyer messages, Sowo replies instantly, checks stock, haggles down to the floor price the vendor set (the buyer never sees it), sends a Paystack payment link, confirms payment from Paystack's webhook, and tells the vendor to pack the order. Buyers write in Pidgin and English.
+An AI sales assistant for Nigerian vendors who sell on WhatsApp. When a buyer messages, Sowo replies instantly, checks stock, haggles down to the floor price the vendor set (the buyer never sees it), sends a Paystack payment link (or, if the vendor prefers, her own bank account number), confirms payment from Paystack's webhook (or from the vendor tapping Mark paid), and tells the vendor to pack the order. Buyers write in Pidgin and English.
 
 Built for OSCA Ile-Ife's **OPEN//BUILD 2026** hackathon on the open-weight **Qwen3** model. MIT licensed.
 
@@ -104,7 +104,7 @@ python -m app.seed_demo                               # Ada's Footwear: products
 uvicorn app.main:app --reload                         # http://localhost:8000/health
 ```
 
-Set `NEXT_PUBLIC_API_URL=http://localhost:8000` in `apps/web/.env.local` and the web app talks to it instead of running in demo mode. To try Qwen3 on its own, `python -m app.chat_cli` is a terminal chat with the same agent and rules. Connecting a WhatsApp number and Paystack is covered in [`apps/api/README.md`](apps/api/README.md).
+Set `NEXT_PUBLIC_API_URL=http://localhost:8000` in `apps/web/.env.local` and the web app talks to it instead of running in demo mode. To try Qwen3 on its own, `python -m app.chat_cli` is a terminal chat with the same agent and rules. Connecting a WhatsApp number and Paystack is covered in [`apps/api/README.md`](apps/api/README.md), as is the bank-transfer mode (`PAYMENT_MODE=manual`) for vendors who would rather be paid straight into their own account: Sowo gives the buyer the account number, the buyer sends a receipt, and the vendor taps **Mark paid** in the dashboard once she sees the money.
 
 > **Status:** the REST endpoints, the Qwen3 tool loop, the WhatsApp webhook, Paystack and the simulator endpoints are all in place and tested, and the web app has been run end to end against the API. What has *not* been run yet is a live Qwen3, a live WhatsApp number or a live Paystack account: those are exercised with stand-ins, so expect to tune the prompt on the first real run.
 
@@ -222,7 +222,7 @@ Qwen3 is released under the **Apache 2.0** licence. Model weights are downloaded
 
 - The floor price is never put into a prompt, tool output, log or hint shown to the model.
 - A buyer can't change a price by asking. `get_quote` takes no prices from the model, so the quote is always priced by the server.
-- Payment is trusted only from Paystack's signed webhook, never from a buyer's message or screenshot.
+- Payment is trusted only from Paystack's signed webhook, or in bank-transfer mode from the vendor tapping Mark paid after checking her own bank app. Never from a buyer's message or screenshot.
 - Conversations the model can't handle (complaints, exchanges, bulk orders, repeated lowballing) are handed to the vendor and Sowo stops replying.
 
 ### Known limitations
@@ -258,7 +258,7 @@ pnpm test         # tests only
 | `apps/web/lib/mock` | The haggling rules (the ₦35,000 → ₦43,000 → ₦41,000 sale, stepping down, never below the floor, never above the list price), offer and area parsing, the full sale end to end including stock reservation and the receipt, hand-off to the vendor, message ordering, and a check that the floor price never appears in anything buyers or the model can see |
 | `apps/api` | The floor-price engine, offer storage and seed data. Run `pytest` and `ruff check` from `apps/api` |
 
-At the time of writing: 6 tests in `packages/shared`, 16 in `apps/web`, and 141 in `apps/api`, all passing.
+At the time of writing: 6 tests in `packages/shared`, 19 in `apps/web`, and 175 in `apps/api`, all passing.
 
 Every push and pull request also runs these checks in GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)): lint, typecheck, tests and a production build for the web app, and `ruff` and `pytest` for the API.
 

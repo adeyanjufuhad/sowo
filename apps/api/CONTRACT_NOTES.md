@@ -25,4 +25,13 @@ Where the real backend differs from, or adds to, `docs/api-contract.md` (for its
 - **Fulfilment.** Paid orders report `PACKAGING`. There is no way yet to move an order to `SHIPPED` or `DELIVERED`.
 - **Conversation `CLOSED`** is still never produced.
 
+### Bank-transfer mode (`PAYMENT_MODE=manual`)
+
+- **`Order.paymentMethod`** (`"PAYSTACK" | "MANUAL"`) and **`Order.receiptReportedAt`** (ISO string, bank transfers only) are new optional fields. The shared `Order` type has both.
+- **`request_payment` output** in manual mode has no `paymentUrl`; it has `method: "MANUAL"` and `bank: { bankName, accountName, accountNumber }`. The shared type makes `paymentUrl` optional and adds `method` and `bank`.
+- **`POST /orders/{id}/mark-paid`** (new, no body). `200 { order, message? }` where `message` is the buyer's receipt and is absent on a repeat tap. `404` unknown order, `409` for a Paystack order, a cancelled order, or an expired one whose stock is gone.
+- **`POST /simulator/receipts`** (new) takes `{ reference }` and returns `{ order, messages }`. `404` unless it is a simulator order, `409` unless it is a pending bank-transfer order. `POST /simulator/payments` now `409`s for bank-transfer orders.
+- **`report_payment_sent`** is a sixth model tool, offered only in manual mode, and like `escalate_to_vendor` it is not written to `toolCalls`.
+- **Columns.** `orders.payment_method` and `orders.receipt_reported_at` are added to existing SQLite databases on startup.
+
 New tables: `quotes` (a priced basket the model was shown; `request_payment` turns one into an order). Existing databases get it from `create_all` on startup.

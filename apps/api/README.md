@@ -54,6 +54,9 @@ Everything comes from environment variables or `.env`. See [`.env.example`](.env
 | `WHATSAPP_GRAPH_VERSION` | `v23.0` | Graph API version. Meta retires old ones, so check theirs |
 | `WHATSAPP_ECHO_MODE` | `false` | Reply with `Echo: <text>` and skip the model, to test the webhook wiring |
 | `VENDOR_ALERT_PHONE` | | Ada's own WhatsApp number (digits, with country code) for "pack this" and "needs you" alerts |
+| `PAYMENT_MODE` | `paystack` | `paystack` sends a checkout link. `manual` gives the buyer Ada's bank account and waits for her to tap Mark paid (see [Bank-transfer mode](#bank-transfer-mode)) |
+| `VENDOR_BANK_NAME`, `VENDOR_ACCOUNT_NAME`, `VENDOR_ACCOUNT_NUMBER` | | Ada's account for `manual` mode. The number must be 10 digits |
+| `MANUAL_PAYMENT_HOLD_MINUTES` | `180` | How long a bank-transfer order holds stock. Longer than `STOCK_HOLD_MINUTES` because transfers and checking a bank app take a while |
 | `PAYSTACK_SECRET_KEY` | | Test or live secret key. Also verifies Paystack's webhook signature |
 | `PAYSTACK_CALLBACK_URL` | | Where the buyer lands after paying (optional) |
 | `PAYSTACK_CUSTOMER_EMAIL_DOMAIN` | `customers.sowo.invalid` | Paystack needs an email per payer; buyers get `<phone>@<this domain>` |
@@ -73,7 +76,9 @@ The REST endpoints are specified in [`docs/api-contract.md`](../../docs/api-cont
 | `POST /conversations/:id/pause`, `.../resume`, `.../messages` | Ada pauses Sowo, resumes it, or replies herself (sent over WhatsApp) |
 | `GET /orders`, `GET /products` | Dashboard orders and products (products include the floor price: vendor-only) |
 | `POST /simulator/messages` | The `/try` page: a buyer message, answered by the same agent, without WhatsApp |
-| `POST /simulator/payments` | The `/try` page: stands in for Paystack's webhook. Only touches simulator orders |
+| `POST /simulator/payments` | The `/try` page: stands in for Paystack's webhook. Only touches simulator orders. Refused for bank-transfer orders |
+| `POST /simulator/receipts` | The `/try` page in `manual` mode: the buyer says they've sent the transfer. Flags the order for Ada, pays nothing |
+| `POST /orders/{id}/mark-paid` | Ada confirms a bank-transfer order has reached her account. Refused for Paystack orders |
 | `GET /webhooks/whatsapp` | Meta's one-off verification handshake |
 | `POST /webhooks/whatsapp` | Buyer messages. Needs a valid `X-Hub-Signature-256` |
 | `POST /webhooks/paystack` | Payment confirmations. Needs a valid `X-Paystack-Signature` |
@@ -104,6 +109,17 @@ Both webhooks answer `200` straight away and do the real work in the background,
 - **Payment means a signed Paystack webhook.** `mark_order_paid` checks the reference and that the amount equals the order total in kobo. It is idempotent, so a retried webhook neither double-sells stock nor double-sends a receipt. A mismatched amount flags the chat and alerts Ada instead.
 - **Prices are re-derived, never trusted.** `request_payment` re-prices the quote just before creating the order, and fails if anything changed.
 
+## Bank-transfer mode
+
+Set `PAYMENT_MODE=manual` and Ada's account details, and Sowo stops using Paystack altogether:
+
+1. After the haggle, `request_payment` creates the order, holds the stock for `MANUAL_PAYMENT_HOLD_MINUTES`, and gives the model Ada's bank, account name and number plus the order reference to use as the narration. If the account isn't set up (or isn't 10 digits), no order is created and the chat goes to Ada.
+2. The buyer pays from their bank app and sends the receipt picture, or says "I don pay". A picture while an order is waiting flags it; words go to the model, which has a `report_payment_sent` tool that does the same. Either way Ada gets a WhatsApp alert once, and the hold is extended while she checks.
+3. **Nothing is paid until Ada says so.** She looks in her own bank app, then taps **Mark paid** in the dashboard (`POST /orders/{id}/mark-paid`). That runs the same `mark_order_paid` as a Paystack webhook: stock is taken, the hold is released and the buyer gets a receipt written by the server. A second tap changes nothing and sends nothing.
+4. If the hold expired before Ada looked, Mark paid revives the order when the stock is still there, and says so when it isn't.
+
+The receipt is a prompt for Ada, not proof: the picture isn't downloaded, read or shown anywhere, because a screenshot is the easiest thing in the world to fake. The buyer can't mark their own order paid by any route, and the model can't announce a payment (the same guard blocks it as in Paystack mode).
+
 ## Connect WhatsApp
 
 1. In [Meta for Developers](https://developers.facebook.com) create an app and add the **WhatsApp** product. Its API setup page gives you a test number's **phone number id** and an access token (the temporary one lasts 24 hours; use a System User token for anything longer).
@@ -123,11 +139,11 @@ WhatsApp only lets a business send free-form text within 24 hours of the buyer's
 ## Tests
 
 ```bash
-pytest          # 141 tests
+pytest          # 175 tests
 ruff check .
 ```
 
-Tests never touch the network: Qwen3 is a scripted stand-in (`tests/helpers.py`), and Meta's Graph API and Paystack are recorded by `httpx.MockTransport`. They cover the full sale through the tools, the floor price never reaching the model, invented prices and fake "payment received" replies being caught, both signature checks, duplicate and out-of-order webhooks, paused and handed-off chats, outages of Meta, Paystack and Ollama, and the simulator endpoints.
+Tests never touch the network: Qwen3 is a scripted stand-in (`tests/helpers.py`), and Meta's Graph API and Paystack are recorded by `httpx.MockTransport`. They cover the full sale through the tools, the floor price never reaching the model, invented prices and fake "payment received" replies being caught, both signature checks, duplicate and out-of-order webhooks, paused and handed-off chats, outages of Meta, Paystack and Ollama, the simulator endpoints, and bank-transfer mode (account details, receipts, Mark paid, double taps, expired holds).
 
 **Not yet verified:** a run against a live Qwen3, a live WhatsApp number and a live Paystack account. The agent and clients are written to those APIs' documented shapes and exercised end to end with stand-ins, but the first real run will probably need prompt tuning for the model you pick.
 
@@ -136,5 +152,6 @@ Tests never touch the network: Qwen3 is a scripted stand-in (`tests/helpers.py`)
 - One vendor, one item type per order line, and one conversation per buyer phone number.
 - Qwen3 is not tuned for Nigerian Pidgin; the server, not the model, validates every offer and amount.
 - Catalogue search is a keyword match, not semantic.
-- Only text messages are read. Pictures get a polite "text only" reply.
+- Only text messages are read. A picture is treated as a receipt when a bank-transfer order is waiting; otherwise it gets a polite "text only" reply.
+- Bank-transfer mode has no "payment not received" button yet: if the money never arrives Ada simply doesn't tap Mark paid and the hold lapses.
 - Background work runs inside the web process, which is fine for one shop. A queue would be the next step at scale.
