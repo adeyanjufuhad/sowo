@@ -203,11 +203,14 @@ class ToolBox:
     def _product(self, identifier: str) -> Product:
         """Find one of this vendor's products by sku (what the model is shown) or by id."""
         product = self.session.scalar(
-            select(Product).where(Product.vendor_id == self.vendor.id, Product.sku == identifier.upper())
+            select(Product).where(
+                Product.vendor_id == self.vendor.id, Product.sku == identifier.upper(), Product.archived_at.is_(None)
+            )
         )
         if product is None:
             by_id = self.session.get(Product, identifier)
-            product = by_id if by_id is not None and by_id.vendor_id == self.vendor.id else None
+            own = by_id is not None and by_id.vendor_id == self.vendor.id and by_id.archived_at is None
+            product = by_id if own else None
         if product is None:
             raise ValueError(f"no product with sku {identifier}; call search_catalog first")
         return product

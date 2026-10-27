@@ -61,6 +61,43 @@ export interface Product {
   floorPriceKobo: Kobo;
   stockOnHand: number;
   imageUrl: string;
+  /** Only the real backend sends these; the offline demo's products don't have them. */
+  description?: string;
+  size?: string | null;
+  colour?: string | null;
+}
+
+/** A new product. Prices are whole kobo, and 0 < floorPriceKobo <= basePriceKobo. */
+export interface ProductCreate {
+  sku: string;
+  name: string;
+  description?: string;
+  size?: string | null;
+  colour?: string | null;
+  basePriceKobo: Kobo;
+  floorPriceKobo: Kobo;
+  stockOnHand?: number;
+  imageUrl?: string;
+}
+
+/** Send only what changes. */
+export type ProductUpdate = Partial<ProductCreate>;
+
+/** Archived means kept for the orders that mention the product, but no longer sold or shown. */
+export interface DeleteProductResponse {
+  deleted: boolean;
+  archived: boolean;
+}
+
+export interface DeliveryZone {
+  id: string;
+  area: string;
+  feeKobo: Kobo;
+}
+
+export interface DeliveryZoneInput {
+  area: string;
+  feeKobo: Kobo;
 }
 
 export const PAYMENT_STATUSES = ["PENDING", "PAID", "FAILED", "REFUNDED"] as const;
@@ -350,7 +387,7 @@ export interface ApiError {
 /* Endpoints                                                                  */
 /* -------------------------------------------------------------------------- */
 
-type Method = "GET" | "POST" | "PATCH";
+type Method = "GET" | "POST" | "PATCH" | "DELETE";
 
 interface Endpoint<Req, Res> {
   method: Method;
@@ -383,6 +420,24 @@ export const endpoints = {
     ),
   listOrders: () => endpoint<void, ListOrdersResponse>("GET", "/orders"),
   listProducts: () => endpoint<void, ListProductsResponse>("GET", "/products"),
+  createProduct: () =>
+    endpoint<ProductCreate, { product: Product }>("POST", "/products"),
+  updateProduct: (id: string) =>
+    endpoint<ProductUpdate, { product: Product }>("PATCH", `/products/${enc(id)}`),
+  deleteProduct: (id: string) =>
+    endpoint<void, DeleteProductResponse>("DELETE", `/products/${enc(id)}`),
+  listDeliveryZones: () =>
+    endpoint<void, { zones: DeliveryZone[] }>("GET", "/delivery-zones"),
+  createDeliveryZone: () =>
+    endpoint<DeliveryZoneInput, { zone: DeliveryZone }>("POST", "/delivery-zones"),
+  updateDeliveryZone: (id: string) =>
+    endpoint<Partial<DeliveryZoneInput>, { zone: DeliveryZone }>(
+      "PATCH",
+      `/delivery-zones/${enc(id)}`,
+    ),
+  /** Responds 204 with no body. */
+  deleteDeliveryZone: (id: string) =>
+    endpoint<void, void>("DELETE", `/delivery-zones/${enc(id)}`),
   sendSimulatorMessage: () =>
     endpoint<SimulatorMessageRequest, SimulatorMessageResponse>(
       "POST",

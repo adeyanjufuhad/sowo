@@ -72,7 +72,10 @@ def _quote(session: Session, conversation_id: str, items: list[dict[str, Any]], 
     product_ids = [product_id for product_id, _ in normalised]
     products = {
         product.id: product
-        for product in session.scalars(select(Product).where(Product.id.in_(product_ids), Product.vendor_id == vendor_id))
+        for product in session.scalars(select(Product).where(
+                Product.id.in_(product_ids), Product.vendor_id == vendor_id, Product.archived_at.is_(None)
+            )
+        )
     }
     if len(products) != len(product_ids):
         return _error("NOT_FOUND", "One or more products could not be found")

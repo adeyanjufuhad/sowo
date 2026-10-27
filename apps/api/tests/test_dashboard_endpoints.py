@@ -186,6 +186,9 @@ def test_list_products_includes_vendor_floor_price_only_here(dashboard_client: t
                 "floorPriceKobo": 4000000,
                 "stockOnHand": 3,
                 "imageUrl": "",
+                "description": "Leather loafers",
+                "size": "43",
+                "colour": "Black",
             }
         ]
     }

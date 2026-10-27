@@ -41,6 +41,12 @@ Where the real backend differs from, or adds to, `docs/api-contract.md` (for its
 - **Columns.** `vendors.owner_name`, `whatsapp_phone_number_id` (unique), `alert_phone`, `payment_mode` (`paystack` by default), `bank_name`, `bank_account_name`, `bank_account_number`; `products` is unique on `(vendor_id, sku)`. Migration `0003`.
 - **Wording.** The buyer-facing receipt names the owner (`ownerName`, else the business name) instead of "Ada"; the "I've sent your receipt" reply says "the owner".
 
+### Catalog management
+
+- **New (signed in, scoped to the vendor):** `POST /products` (`201 { product }`), `PATCH /products/:id` (`200 { product }`), `DELETE /products/:id` (`200 { deleted, archived }`), `GET /delivery-zones` (`{ zones }`), `POST /delivery-zones` (`201 { zone }`), `PATCH /delivery-zones/:id` (`200 { zone }`), `DELETE /delivery-zones/:id` (`204`). `400` with a readable message for invalid values, `409` for a duplicate sku or area, `404` for anything that isn't the vendor's.
+- **`Product`** (also what `GET /products` returns) gains optional `description`, `size` and `colour`. `POST` takes `{ sku, name, description?, size?, colour?, basePriceKobo, floorPriceKobo, stockOnHand?, imageUrl? }`; `PATCH` takes any of them (`size` and `colour` accept `null`). Money must be whole kobo (a float or a string is a `400`), and `0 < floorPriceKobo <= basePriceKobo`.
+- **Archiving.** Deleting a product that appears in an order, offer or stock hold archives it (`products.archived_at`, migration `0004`): it is gone from `GET /products`, the assistant and quotes, and its sku stays taken.
+
 ### Bank-transfer mode (a vendor's `paymentMode: "manual"`)
 
 - **`Order.paymentMethod`** (`"PAYSTACK" | "MANUAL"`) and **`Order.receiptReportedAt`** (ISO string, bank transfers only) are new optional fields. The shared `Order` type has both.

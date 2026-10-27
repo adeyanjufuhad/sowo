@@ -109,6 +109,9 @@ class Product(Base):
     floor_price_kobo: Mapped[int] = mapped_column(Integer, nullable=False)
     stock: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     image_url: Mapped[str] = mapped_column(String(500), nullable=False, default="")
+    # Set when the vendor removes a product that has already been ordered or haggled over: it stops being sold or
+    # shown, but the orders that mention it keep working.
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     vendor: Mapped[Vendor] = relationship(back_populates="products")
 
 

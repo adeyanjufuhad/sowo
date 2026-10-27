@@ -18,6 +18,7 @@ from app.models import (
     Product,
     Vendor,
 )
+from app.routes_catalog import product_response
 from app.schemas import (
     ConversationEnvelope,
     ConversationResponse,
@@ -28,7 +29,6 @@ from app.schemas import (
     MessageResponse,
     OrderItemResponse,
     OrderResponse,
-    ProductResponse,
     VendorReplyRequest,
     VendorReplyResponse,
 )
@@ -249,19 +249,10 @@ def list_orders(session: SessionDependency, vendor: CurrentVendor) -> ListOrders
 @router.get("/products", response_model=ListProductsResponse)
 def list_products(session: SessionDependency, vendor: CurrentVendor) -> ListProductsResponse:
     products = list(
-        session.scalars(select(Product).where(Product.vendor_id == vendor.id).order_by(Product.name.asc()))
+        session.scalars(
+            select(Product)
+            .where(Product.vendor_id == vendor.id, Product.archived_at.is_(None))
+            .order_by(Product.name.asc())
+        )
     )
-    return ListProductsResponse(
-        products=[
-            ProductResponse(
-                id=product.id,
-                sku=product.sku,
-                name=product.name,
-                basePriceKobo=product.price_kobo,
-                floorPriceKobo=product.floor_price_kobo,
-                stockOnHand=product.stock,
-                imageUrl=product.image_url,
-            )
-            for product in products
-        ]
-    )
+    return ListProductsResponse(products=[product_response(product) for product in products])

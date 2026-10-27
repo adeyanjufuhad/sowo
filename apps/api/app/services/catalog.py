@@ -36,7 +36,9 @@ def search_catalog(session: Session, vendor_id: str, query: str) -> dict[str, li
         Product.price_kobo,
         Product.stock,
         func.coalesce(active_holds.c.held, 0).label("held"),
-    ).outerjoin(active_holds, active_holds.c.product_id == Product.id).where(Product.vendor_id == vendor_id)
+    ).outerjoin(active_holds, active_holds.c.product_id == Product.id).where(
+        Product.vendor_id == vendor_id, Product.archived_at.is_(None)
+    )
     for word in query.casefold().split():
         statement = statement.where(searchable.like(f"%{word}%"))
 

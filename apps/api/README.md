@@ -111,6 +111,16 @@ A WhatsApp message to a number no vendor has connected is dropped (and logged); 
 
 Settings are not copied from the environment when upgrading. Variables from earlier versions (`WHATSAPP_PHONE_NUMBER_ID`, `VENDOR_ALERT_PHONE`, `PAYMENT_MODE`, `VENDOR_BANK_NAME`, `VENDOR_ACCOUNT_NAME`, `VENDOR_ACCOUNT_NUMBER`) are ignored: enter them through the settings endpoint once.
 
+## Catalog
+
+A vendor builds their own catalog with `POST /products`, `PATCH /products/:id` and `DELETE /products/:id`, and the areas they deliver to with `/delivery-zones`. Everything is scoped to the signed-in vendor, and another vendor's id is a `404`.
+
+- Money is whole kobo and the **floor price** (`floorPriceKobo`) must be more than zero and no more than the price. It is the lowest price the vendor will accept, shown only to them here: it never reaches the model (search results and every tool answer leave it out, and tests check everything sent to the model for it).
+- A `sku` is 1 to 64 letters, numbers, dots, dashes or underscores, stored upper-case, and unique within one vendor's catalog (two shops may use the same one).
+- Changing a price, stock or delivery fee applies from the very next message: the assistant reads the database on every turn, and `request_payment` re-prices a quote just before creating the order, so a buyer is never charged a stale price.
+- `DELETE /products/:id` removes a product nobody has touched. One that has been ordered, haggled over or held is **archived** instead (`{ "deleted": false, "archived": true }`): it disappears from the dashboard, the assistant and new quotes, but the orders and chats that mention it keep working. An archived product's sku stays reserved.
+- Delivery zones can always be deleted: an order keeps the area name it was placed with. An area is unique per vendor, ignoring case.
+
 ## Endpoints
 
 The REST endpoints are specified in [`docs/api-contract.md`](../../docs/api-contract.md); the shared types are in `packages/shared`.
@@ -120,6 +130,9 @@ The REST endpoints are specified in [`docs/api-contract.md`](../../docs/api-cont
 | `GET /conversations`, `GET /conversations/:id/messages` | Dashboard chats |
 | `POST /conversations/:id/pause`, `.../resume`, `.../messages` | Ada pauses Sowo, resumes it, or replies herself (sent over WhatsApp) |
 | `GET /orders`, `GET /products` | Dashboard orders and products (products include the floor price: vendor-only) |
+| `POST /products`, `PATCH /products/:id`, `DELETE /products/:id` | The vendor's catalog. See [Catalog](#catalog) |
+| `GET /delivery-zones`, `POST /delivery-zones`, `PATCH`/`DELETE /delivery-zones/:id` | Where the vendor delivers, and the fee for each area |
+| `GET /vendor/settings`, `PATCH /vendor/settings` | The vendor's WhatsApp number, alert phone, owner name and payment setup. See [Shop settings](#shop-settings) |
 | `POST /simulator/messages` | The `/try` page: a buyer message, answered by the same agent, without WhatsApp |
 | `POST /simulator/payments` | The `/try` page: stands in for Paystack's webhook. Only touches simulator orders. Refused for bank-transfer orders |
 | `POST /simulator/receipts` | The `/try` page in `manual` mode: the buyer says they've sent the transfer. Flags the order for Ada, pays nothing |
