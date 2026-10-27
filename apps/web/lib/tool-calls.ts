@@ -24,29 +24,34 @@ export function summarizeToolCall(call: ToolCall): ToolCallSummary {
     }
     case "evaluate_offer": {
       const { decision, counterKobo, agreedPriceKobo } = call.output;
+      const price = decision === "ACCEPT" ? agreedPriceKobo : counterKobo;
       return {
         tool: call.tool,
-        model: `offer ${formatNaira(call.input.offerKobo)} on ${call.input.productId}`,
-        server:
-          decision === "ACCEPT"
-            ? `ACCEPT at ${formatNaira(agreedPriceKobo ?? 0)}`
-            : `${decision} at ${formatNaira(counterKobo ?? 0)}`,
+        model: `offer ${formatNaira(call.input.offerKobo)} on ${call.input.sku ?? call.input.productId}`,
+        // REJECT and HANDOFF carry no price, so show just the decision.
+        server: price === undefined ? decision : `${decision} at ${formatNaira(price)}`,
       };
     }
     case "get_quote": {
       const q = call.output;
-      const items = call.input.items.map((i) => `${i.quantity}× ${i.productId}`).join(", ");
+      const items = call.input.items.map((i) => `${i.quantity}× ${i.sku ?? i.productId}`).join(", ");
       return {
         tool: call.tool,
         model: `${items} to ${call.input.deliveryArea}`,
         server: `${formatNaira(q.subtotalKobo)} + ${formatNaira(q.deliveryFeeKobo)} delivery = ${formatNaira(q.totalKobo)}`,
       };
     }
-    case "request_payment":
+    case "request_payment": {
+      const how = call.output.method === "MANUAL" ? "bank transfer to Ada" : "Paystack link";
       return {
         tool: call.tool,
         model: `pay quote ${call.input.quoteId}`,
-        server: `order ${call.output.orderId.replace("ord_", "#")} · Paystack link · ${formatNaira(call.output.amountKobo)}`,
+        // The reference (SW-…) reads well; the order id may be a database UUID.
+        server: `order ${call.output.reference} · ${how} · ${formatNaira(call.output.amountKobo)}`,
       };
+    }
+    default:
+      // A tool this build doesn't know yet (the backend may be newer): show it plainly rather than crash.
+      return { tool: (call as { tool: string }).tool, model: "", server: "" };
   }
 }

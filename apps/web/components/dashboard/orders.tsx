@@ -3,6 +3,7 @@ import { Receipt } from "lucide-react";
 import { relativeTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { FulfillmentBadge, PaymentBadge } from "./badges";
+import { MarkPaid, awaitsTransfer } from "./mark-paid";
 
 const orderNo = (order: Order) => order.id.replace("ord_", "#");
 const needsPacking = (order: Order) => order.paymentStatus === "PAID" && order.fulfillmentStatus === "PACKAGING";
@@ -41,6 +42,7 @@ export function OrdersView({ orders, now }: { orders: Order[]; now: number }) {
               {o.paymentStatus === "PAID" ? <FulfillmentBadge status={o.fulfillmentStatus} /> : null}
               <span className="ml-auto text-xs text-muted">{relativeTime(o.createdAt, now)}</span>
             </div>
+            {awaitsTransfer(o) ? <MarkPaid order={o} now={now} className="mt-3 border-t border-line pt-3" /> : null}
           </li>
         ))}
       </ul>
@@ -74,6 +76,7 @@ export function OrdersView({ orders, now }: { orders: Order[]; now: number }) {
                 <td className="px-4 py-3 text-right font-mono font-medium whitespace-nowrap">{formatNaira(o.totalKobo)}</td>
                 <td className="px-4 py-3">
                   <PaymentBadge status={o.paymentStatus} />
+                  {awaitsTransfer(o) ? <MarkPaid order={o} now={now} className="mt-2 min-w-48" /> : null}
                 </td>
                 <td className="px-4 py-3">
                   {o.paymentStatus === "PAID" ? <FulfillmentBadge status={o.fulfillmentStatus} /> : <span className="text-muted">·</span>}

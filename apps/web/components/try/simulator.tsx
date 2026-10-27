@@ -1,7 +1,7 @@
 "use client";
 
 import { formatNaira, type Conversation, type Message, type Order, type RequestPaymentCall } from "@sowo/shared";
-import { ArrowUp, CheckCheck, LayoutDashboard, LockKeyhole, RotateCcw } from "lucide-react";
+import { ArrowUp, CheckCheck, Landmark, LayoutDashboard, LockKeyhole, RotateCcw } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { api, ApiRequestError } from "@/lib/api";
@@ -54,6 +54,7 @@ export function Simulator() {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [paying, setPaying] = useState<string | null>(null);
+  const [receiptFor, setReceiptFor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"chat" | "tools">("chat");
   const threadRef = useRef<HTMLDivElement>(null);
@@ -80,20 +81,23 @@ export function Simulator() {
       .catch(() => storeId(null));
   }, [refreshOrders]);
 
-  // Poll so replies Ada sends from the dashboard show up here.
+  const waitingOnAda = [...orders.values()].some((o) => o.paymentMethod === "MANUAL" && o.paymentStatus === "PENDING");
+
+  // Poll so replies Ada sends from the dashboard show up here, and so does her tapping Mark paid.
   useEffect(() => {
-    if (!conversation || sending || paying) return;
+    if (!conversation || sending || paying || receiptFor) return;
     const timer = window.setInterval(async () => {
       try {
         const res = await api.listMessages(conversation.id);
         setConversation(res.conversation);
         setMessages((prev) => (res.messages.length !== prev.length ? res.messages : prev));
+        if (waitingOnAda) await refreshOrders(conversation.id);
       } catch {
         // keep the current view; the next poll may succeed
       }
     }, POLL_MS);
     return () => window.clearInterval(timer);
-  }, [conversation, sending, paying]);
+  }, [conversation, sending, paying, receiptFor, waitingOnAda, refreshOrders]);
 
   // Keep the newest message in view.
   useEffect(() => {
@@ -143,6 +147,20 @@ export function Simulator() {
       setError(err instanceof ApiRequestError ? err.message : "Payment simulation failed. Try again.");
     } finally {
       setPaying(null);
+    }
+  }
+
+  async function sendReceipt(reference: string) {
+    setReceiptFor(reference);
+    setError(null);
+    try {
+      const res = await api.sendSimulatorReceipt({ reference });
+      setOrders((prev) => new Map(prev).set(reference, res.order));
+      setMessages((prev) => [...prev, ...res.messages]);
+    } catch (err) {
+      setError(err instanceof ApiRequestError ? err.message : "Couldn't send the receipt. Try again.");
+    } finally {
+      setReceiptFor(null);
     }
   }
 
@@ -224,7 +242,54 @@ export function Simulator() {
                   </span>
                 </div>
 
-                {payment ? (
+                {payment?.output.method === "MANUAL" && payment.output.bank ? (
+                  <div className="mt-2 w-[85%] max-w-xs rounded-2xl bg-card p-3.5 ring-1 ring-line">
+                    <p className="flex items-center gap-1.5 text-xs text-muted">
+                      <Landmark aria-hidden className="size-3.5" strokeWidth={1.75} /> Bank transfer to Ada
+                    </p>
+                    <p className="mt-1 font-display text-2xl font-semibold tracking-[-0.03em]">
+                      {formatNaira(payment.output.amountKobo)}
+                    </p>
+                    <dl className="mt-2 space-y-0.5 text-sm">
+                      <div className="flex justify-between gap-3">
+                        <dt className="text-muted">Bank</dt>
+                        <dd>{payment.output.bank.bankName}</dd>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <dt className="text-muted">Name</dt>
+                        <dd>{payment.output.bank.accountName}</dd>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <dt className="text-muted">Account</dt>
+                        <dd className="font-mono tracking-wide">{payment.output.bank.accountNumber}</dd>
+                      </div>
+                      <div className="flex justify-between gap-3">
+                        <dt className="text-muted">Narration</dt>
+                        <dd className="font-mono text-xs">{payment.output.reference}</dd>
+                      </div>
+                    </dl>
+                    {order?.paymentStatus === "PAID" ? (
+                      <p className="mt-3 rounded-lg bg-accent-wash px-3 py-2 text-sm font-medium text-accent-strong">
+                        Paid. Ada confirmed the transfer.
+                      </p>
+                    ) : order?.receiptReportedAt ? (
+                      <p className="mt-3 rounded-lg bg-paper-deep px-3 py-2 text-sm text-ink-soft">
+                        Receipt sent. Waiting for Ada to confirm it in her dashboard.
+                      </p>
+                    ) : order?.paymentStatus === "PENDING" ? (
+                      <button
+                        type="button"
+                        disabled={receiptFor !== null}
+                        onClick={() => sendReceipt(payment.output.reference)}
+                        className="mt-3 h-9 w-full rounded-full bg-accent-strong px-3 text-sm font-medium text-white transition-[transform,background-color] hover:bg-[#a33515] active:scale-[0.98] disabled:opacity-60"
+                      >
+                        {receiptFor === payment.output.reference ? "Sending…" : "I've sent the transfer"}
+                      </button>
+                    ) : (
+                      <p className="mt-3 rounded-lg bg-paper-deep px-3 py-2 text-sm text-ink-soft">This order is closed.</p>
+                    )}
+                  </div>
+                ) : payment ? (
                   <div className="mt-2 w-[85%] max-w-xs rounded-2xl bg-card p-3.5 ring-1 ring-line">
                     <p className="flex items-center gap-1.5 text-xs text-muted">
                       <LockKeyhole aria-hidden className="size-3.5" strokeWidth={1.75} /> Paystack · test mode

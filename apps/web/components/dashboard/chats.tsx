@@ -8,6 +8,7 @@ import { initials, relativeTime, watTime } from "@/lib/format";
 import { summarizeToolCall } from "@/lib/tool-calls";
 import { cn } from "@/lib/utils";
 import { ConversationBadge, FulfillmentBadge, PaymentBadge } from "./badges";
+import { MarkPaid } from "./mark-paid";
 import { usePoll } from "./use-poll";
 
 /** NEEDS_ATTENTION first, then newest. */
@@ -201,6 +202,7 @@ export function ChatThread({
           <span className="font-mono">{formatNaira(order.totalKobo)}</span>
           <PaymentBadge status={order.paymentStatus} />
           {order.paymentStatus === "PAID" ? <FulfillmentBadge status={order.fulfillmentStatus} /> : null}
+          <MarkPaid order={order} onPaid={onChanged} className="basis-full" />
         </div>
       ) : null}
 

@@ -6,8 +6,8 @@ from sqlalchemy.orm import Session
 from app.models import Order, OrderStatus, Product, StockHold
 
 
-def search_catalog(session: Session, query: str) -> dict[str, list[dict[str, int | str]]]:
-    """Return a deliberately narrow, model-safe projection of matching products."""
+def search_catalog(session: Session, vendor_id: str, query: str) -> dict[str, list[dict[str, int | str]]]:
+    """Return a deliberately narrow, model-safe projection of one vendor's matching products."""
     from app.services.orders import expire_holds
 
     expire_holds(session)
@@ -31,19 +31,23 @@ def search_catalog(session: Session, query: str) -> dict[str, list[dict[str, int
     )
     statement = select(
         Product.id,
+        Product.sku,
         Product.name,
         Product.price_kobo,
         Product.stock,
         func.coalesce(active_holds.c.held, 0).label("held"),
-    ).outerjoin(active_holds, active_holds.c.product_id == Product.id)
+    ).outerjoin(active_holds, active_holds.c.product_id == Product.id).where(
+        Product.vendor_id == vendor_id, Product.archived_at.is_(None)
+    )
     for word in query.casefold().split():
         statement = statement.where(searchable.like(f"%{word}%"))
 
     results = []
-    for product_id, name, price_kobo, stock, held in session.execute(statement):
+    for product_id, sku, name, price_kobo, stock, held in session.execute(statement):
         results.append(
             {
                 "productId": product_id,
+                "sku": sku,
                 "name": name,
                 "priceKobo": price_kobo,
                 "stockOnHand": max(0, stock - held),

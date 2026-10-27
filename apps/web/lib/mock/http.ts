@@ -20,6 +20,8 @@ function errorResponse(status: number, message: string): Response {
  * and maps MockError to the contract's error shape.
  */
 export async function handle<T>(run: (state: MockState, now: Date) => T): Promise<Response> {
+  // With a real backend configured there is no demo: these routes only exist to serve the offline demo.
+  if (process.env.NEXT_PUBLIC_API_URL?.trim()) return errorResponse(404, "The demo API is off: a real backend is configured");
   await connection();
   try {
     return Response.json(run(getMockState(), new Date()));
