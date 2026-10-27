@@ -51,7 +51,7 @@ def create_database_engine(database_url: str) -> Engine:
 engine = create_database_engine(get_settings().database_url)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
-MIGRATIONS_DIR = Path(__file__).resolve().parent.parent / "migrations"
+MIGRATIONS_DIR = Path(__file__).resolve().parent / "migrations"
 
 
 def alembic_config(connection: Connection | None = None) -> Config:

@@ -32,7 +32,7 @@ Then point the web app at it: set `NEXT_PUBLIC_API_URL=http://localhost:8000` in
 
 ### Database and migrations
 
-The schema is managed by [Alembic](https://alembic.sqlalchemy.org) (`migrations/`). The app brings an empty or older database up to date every time it starts, so a fresh `uvicorn` just works. You can also run it yourself, which is what to do as a release step when several replicas share one Postgres:
+The schema is managed by [Alembic](https://alembic.sqlalchemy.org) (`app/migrations/`). The app brings an empty or older database up to date every time it starts, so a fresh `uvicorn` just works. You can also run it yourself, which is what to do as a release step when several replicas share one Postgres:
 
 ```bash
 alembic upgrade head                                  # apply every migration
