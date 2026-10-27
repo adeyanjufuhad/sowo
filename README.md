@@ -91,7 +91,7 @@ If `corepack enable` fails with a permissions error on Windows, run `npm install
 
 ### Running the backend
 
-`apps/api` is a FastAPI service. It needs **Python 3.11+**; Qwen3 runs locally through [Ollama](https://ollama.com).
+`apps/api` is a FastAPI service. It needs **Python 3.11+**; Qwen3 runs through [Ollama](https://ollama.com) on your machine, or on a hosted OpenAI-compatible API if you would rather not run a model locally (`MODEL_PROVIDER=openai`, see [`apps/api/README.md`](apps/api/README.md#qwen3-on-a-hosted-api)).
 
 ```bash
 ollama pull qwen3:8b
@@ -115,7 +115,7 @@ Set `NEXT_PUBLIC_API_URL=http://localhost:8000` in `apps/web/.env.local` and the
 flowchart LR
     buyer(["Buyer on WhatsApp"]) -->|message| wa["WhatsApp Cloud API"]
     wa -->|webhook| api["apps/api (FastAPI)"]
-    api -->|"conversation + tool schemas"| llm["Qwen3 via Ollama"]
+    api -->|"conversation + tool schemas"| llm["Qwen3 via Ollama or a hosted API"]
     llm -->|"tool call + reply text"| api
     api <-->|"prices, quotes, stock"| rules["Server rules: floor-price engine"]
     rules <--> db[("Database")]
@@ -201,7 +201,7 @@ docs/
 
 ### Role
 
-Qwen3 is the only model in the product, and it runs locally through Ollama. Its job is narrow:
+Qwen3 is the only model in the product, and it runs through Ollama locally or an OpenAI-compatible hosted API. Its job is narrow:
 
 1. Read the buyer's message, including Pidgin and mixed-language messages.
 2. Choose one of the four tools above and fill in its arguments.
@@ -217,7 +217,7 @@ It does not hold prices, totals or stock. Every number in a reply is copied from
 
 ### Licence
 
-Qwen3 is released under the **Apache 2.0** licence. Model weights are downloaded through Ollama and are **not** included in this repository.
+Qwen3 is released under the **Apache 2.0** licence. Model weights are downloaded through Ollama (or served by the hosting provider) and are **not** included in this repository.
 
 ### Guardrails
 
@@ -277,7 +277,7 @@ Every push and pull request also runs these checks in GitHub Actions ([`.github/
 
 ### Model and services
 
-- **Qwen3** by Alibaba Cloud's Qwen team, under Apache 2.0, run locally with [Ollama](https://ollama.com) (MIT).
+- **Qwen3** by Alibaba Cloud's Qwen team, under Apache 2.0, run with [Ollama](https://ollama.com) (MIT) or on a hosted OpenAI-compatible API.
 - **Paystack** (test mode) for payment links and webhooks, and the **WhatsApp Cloud API** for messaging. These are services we call, not code we ship.
 
 ### Illustrations

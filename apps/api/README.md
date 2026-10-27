@@ -3,7 +3,7 @@
 Sowo's backend: FastAPI and SQLAlchemy. **Qwen3 reads each WhatsApp message and picks a tool; our code decides every price, total, stock change and payment.**
 
 ```
-WhatsApp buyer ─▶ POST /webhooks/whatsapp ─▶ agent ──▶ Qwen3 (Ollama) picks a tool
+WhatsApp buyer ─▶ POST /webhooks/whatsapp ─▶ agent ──▶ Qwen3 (Ollama or a hosted API) picks a tool
                                                │              │
                                                ▼              ▼
                                    server rules: price engine, quotes, stock holds
@@ -14,7 +14,7 @@ WhatsApp buyer ─▶ POST /webhooks/whatsapp ─▶ agent ──▶ Qwen3 (Olla
 
 ## Run it
 
-Needs Python 3.11+ and [Ollama](https://ollama.com).
+Needs Python 3.11+ and Qwen3 from one of two places: [Ollama](https://ollama.com) on your machine (below), or a hosted OpenAI-compatible API, which needs no GPU (see [Qwen3 on a hosted API](#qwen3-on-a-hosted-api)).
 
 ```bash
 ollama pull qwen3:8b
@@ -51,13 +51,27 @@ On Neon, use the pooled URL for `DATABASE_URL` and the direct one for `DATABASE_
 
 Nothing demo-related is on by default. A fresh deployment has no shop, no products and no `/simulator/*` endpoints; vendors sign up and add their own catalog. To run the demo on your own machine, set `ENVIRONMENT=development` (allows the seed commands) and `SIMULATOR_ENABLED=true` (the web app's `/try` page) in your local `.env`. `python -m app.seed`, `python -m app.seed_demo` and `python -m app.chat_cli` all refuse to run unless `ENVIRONMENT=development`, so they can't fill a real database by accident. If a production deployment starts with the simulator on, it logs a warning.
 
+### Qwen3 on a hosted API
+
+To keep the model off your own machine, point the app at any OpenAI-compatible `/chat/completions` endpoint that serves an open-weight Qwen3 model and supports tool calling (Groq, OpenRouter, Cloudflare Workers AI, a vLLM server of your own). In `.env`:
+
+```bash
+MODEL_PROVIDER=openai
+LLM_BASE_URL=https://api.groq.com/openai/v1     # example: Groq
+LLM_API_KEY=...                                  # from the host's console; never commit it
+LLM_MODEL=qwen/qwen3.8-27b                       # the host's id for a Qwen3 model; check its current list
+LLM_REASONING_EFFORT=none                        # optional: asks hosts that support it not to "think" first
+```
+
+Startup fails with a clear message if `MODEL_PROVIDER=openai` is set without `LLM_BASE_URL` and `LLM_MODEL`. The app sends one request per model turn and retries once, after at most five seconds, if the host answers 429 or 503. Free tiers cap requests and tokens per minute and per day, so they suit a demo and not real traffic, and some log prompts, which contain buyers' messages. Confirm the model is open-weight Qwen3 and that the host supports its tool calls before relying on it.
+
 ### Try Qwen3 without WhatsApp or Paystack
 
 ```bash
 python -m app.chat_cli                                # needs ENVIRONMENT=development
 ```
 
-A terminal chat with the same agent, tools and server rules as the bot. It checks that Ollama is running and has the model, shows each tool call in grey, and `/pay` stands in for Paystack's webhook. It is the quickest way to see how Qwen3 copes with Pidgin, haggling and odd requests.
+A terminal chat with the same agent, tools and server rules as the bot. With Ollama it checks that the server is running and has the model (with a hosted API it just starts), shows each tool call in grey, and `/pay` stands in for Paystack's webhook. It is the quickest way to see how Qwen3 copes with Pidgin, haggling and odd requests.
 
 ## Configuration
 
@@ -67,8 +81,11 @@ Everything comes from environment variables or `.env`. See [`.env.example`](.env
 | --- | --- | --- |
 | `DATABASE_URL` | `sqlite:///./sowo.db` | SQLite in development, Postgres in production (`postgresql://user:pass@host:5432/sowo`; `postgres://` works too). On Neon, the pooled URL |
 | `DATABASE_URL_DIRECT` | | Neon's unpooled URL, used only for migrations (PgBouncer isn't good for DDL). Empty means use `DATABASE_URL` |
-| `OLLAMA_BASE_URL`, `OLLAMA_MODEL` | `http://localhost:11434`, `qwen3:8b` | Where Qwen3 runs and which model to use |
-| `OLLAMA_TIMEOUT_SECONDS`, `OLLAMA_TEMPERATURE` | `120`, `0.3` | Model request timeout and sampling temperature |
+| `MODEL_PROVIDER` | `ollama` | `ollama` for a local Ollama, `openai` for a hosted OpenAI-compatible API |
+| `OLLAMA_BASE_URL`, `OLLAMA_MODEL` | `http://localhost:11434`, `qwen3:8b` | Where a local Qwen3 runs and which model to use |
+| `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL` | _(empty)_ | The hosted endpoint, its key and the Qwen3 model id. Needed when `MODEL_PROVIDER=openai` |
+| `LLM_REASONING_EFFORT` | _(empty)_ | Sent as `reasoning_effort` when set (Groq takes `none` for Qwen3). Empty sends nothing |
+| `OLLAMA_TIMEOUT_SECONDS`, `OLLAMA_TEMPERATURE` | `120`, `0.3` | Model request timeout and sampling temperature (used by both providers) |
 | `AGENT_MAX_TOOL_ROUNDS` | `6` | Tool calls the model may chain in one reply |
 | `WHATSAPP_VERIFY_TOKEN` | | A string you choose; Meta sends it back when you register the webhook |
 | `WHATSAPP_APP_SECRET` | | Meta app secret, used to verify the signature on every delivery |
@@ -234,7 +251,7 @@ Tests never touch the network: Qwen3 is a scripted stand-in (`tests/helpers.py`)
 
 - One item type per order line, and one conversation per buyer per vendor.
 - One Meta access token for the whole platform, which works for the vendors' numbers the platform's Meta app manages. Vendors don't bring their own tokens, so nothing secret per vendor is stored in the database.
-- Paystack payments all go to the platform's Paystack account. Paying vendors out (subaccounts) isn't built.
+- Paystack payments all go to the platform's Paystack account. Paying vendors out (subaccounts or transfers) is out of scope by decision; vendors who want the money in their own account use bank-transfer mode.
 - Qwen3 is not tuned for Nigerian Pidgin; the server, not the model, validates every offer and amount.
 - Catalogue search is a keyword match, not semantic.
 - Only text messages are read. A picture is treated as a receipt when a bank-transfer order is waiting; otherwise it gets a polite "text only" reply.

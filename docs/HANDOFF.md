@@ -49,12 +49,7 @@ Fuhad does not want Qwen3 on his laptop; he wants it on a **free** hosted servic
 - `app/services/ollama.py`: `ModelError` added, `OllamaError = ModelError` kept as an alias. `app/deps.py` and `app/chat_cli.py` now use the configured model.
 - The existing 328 API tests and ruff pass with these changes.
 
-Still to do on this branch:
-1. **Tests** in a new `tests/test_openai_compat.py` using `httpx.MockTransport` (see `tests/test_ollama.py` for the pattern): request shape (URL, `Authorization: Bearer`, `tools`, `reasoning_effort` only when set), message conversion (assistant tool calls get ids, tool results get the matching `tool_call_id`, arguments become JSON strings), response parsing (structured tool calls, string arguments, no choices -> `ModelError`), the 429 retry (pass a fake `sleep`), and the settings validator.
-2. **`.env.example`**: add `MODEL_PROVIDER`, `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`, `LLM_REASONING_EFFORT` (commented, with the Groq example below).
-3. **Docs**: `apps/api/README.md` (config table, "Run it", the line `Needs ... Ollama`) and the root `README.md` (lines mentioning Ollama: about 94, 118, 204, 220, 280) should say Qwen3 can run locally through Ollama *or* on a hosted OpenAI-compatible endpoint. Keep the Apache 2.0 / open-weight statement accurate.
-4. **Drop Paystack payouts**: Fuhad decided vendor payouts will NOT be built. Replace `apps/api/README.md` line ~237 ("Paying vendors out (subaccounts) isn't built") with a statement that payouts are out of scope by decision, and make sure nothing else promises them.
-5. Commit with explicit paths (never `git add -A`: tracked junk such as `__pycache__` shows as modified), push, open a PR to `main`, wait for CI.
+Done on this branch since the first handoff (see the progress log at the bottom): tests (`tests/test_openai_compat.py`), `.env.example`, both READMEs, and the Paystack-payouts line. What is left is only: open/merge the PR, then a real run against a hosted Qwen3 once Fuhad has an account and key.
 
 ### Choosing the free host (research on 2026-10-27, treat as unverified and recheck)
 
@@ -119,3 +114,10 @@ Local demo: in `apps/api/.env` set `ENVIRONMENT=development` and `SIMULATOR_ENAB
 ## People and sessions
 
 Fuhad coordinates. A "Sowo backend Python setup" Claude session coordinated merges and handled the main checkout; a Docker engineer (separate person) owns the Docker files and is being given Neon org and GitHub access by Fuhad.
+
+## Progress log (newest last; update this whenever you finish something)
+
+- 2026-10-27, Claude: production backend (items 1-6) merged via PR #4; main at `a4a5f9c` after the dashboard refresh.
+- 2026-10-27, Claude: Fuhad decided (a) no Paystack vendor payouts, (b) Qwen3 should run on a free hosted service, not his laptop.
+- 2026-10-27, Claude: wrote this handoff; added `OpenAICompatibleClient`, `get_chat_model()`, `MODEL_PROVIDER` / `LLM_*` settings on branch `feat/hosted-model` (`78c6547`).
+- 2026-10-27, Claude: added `tests/test_openai_compat.py` (25 tests); documented the hosted model in `.env.example`, `apps/api/README.md` and `README.md`; reworded the payouts line as out of scope.
