@@ -189,7 +189,7 @@ def test_an_unreachable_host_is_reported_as_one_error() -> None:
         client_with(refuse).chat([], None)
 
 
-def test_a_busy_free_tier_gets_one_patient_retry() -> None:
+def test_a_busy_free_tier_gets_a_patient_retry() -> None:
     attempts: list[int] = []
     waits: list[float] = []
 
@@ -200,10 +200,10 @@ def test_a_busy_free_tier_gets_one_patient_retry() -> None:
         return answer({"content": "back"})
 
     reply = client_with(handler, sleep=waits.append).chat([], None)
-    assert reply["content"] == "back" and len(attempts) == 2 and waits == [3.0]
+    assert reply["content"] == "back" and len(attempts) == 2 and waits == [3.5]
 
 
-def test_the_wait_is_capped_and_a_second_refusal_is_an_error() -> None:
+def test_the_wait_is_capped_and_repeated_refusals_are_an_error() -> None:
     attempts: list[int] = []
     waits: list[float] = []
 
@@ -213,7 +213,7 @@ def test_the_wait_is_capped_and_a_second_refusal_is_an_error() -> None:
 
     with pytest.raises(ModelError):
         client_with(handler, sleep=waits.append).chat([], None)
-    assert len(attempts) == 2 and waits == [5.0]
+    assert len(attempts) == 3 and waits == [20.0, 20.0]
 
 
 def test_the_key_is_not_in_the_error_message() -> None:
@@ -256,3 +256,36 @@ def test_the_configured_provider_picks_the_client(monkeypatch: pytest.MonkeyPatc
         monkeypatch.undo()
         get_settings.cache_clear()
         get_chat_model.cache_clear()
+
+
+# -- malformed tool calls --------------------------------------------------------------------------------
+
+
+def tool_use_failed(generation: str) -> httpx.Response:
+    error = {"message": "tool call validation failed", "code": "tool_use_failed", "failed_generation": generation}
+    return httpx.Response(400, json={"error": error})
+
+
+def test_a_tool_call_the_host_rejected_is_read_from_its_failed_generation() -> None:
+    generation = (
+        "<tool_call>" + chr(10) + "<function=search_catalog>" + chr(10) + "<parameter/query>" + chr(10)
+        + "black loafers 43" + chr(10) + "</parameter>" + chr(10) + "</function>" + chr(10) + "</tool_call>"
+    )
+    reply = client_with(lambda _: tool_use_failed(generation)).chat([], [{"type": "function"}])
+    assert [(r.name, r.arguments) for r in parse_tool_calls(reply)] == [("search_catalog", {"query": "black loafers 43"})]
+
+
+def test_numbers_and_booleans_in_a_rejected_call_get_their_types_back() -> None:
+    generation = (
+        "<function=evaluate_offer><parameter=sku>LOAF-BLK-43</parameter>"
+        "<parameter=offered_price_kobo>3500000</parameter><parameter=final>true</parameter></function>"
+    )
+    reply = client_with(lambda _: tool_use_failed(generation)).chat([], None)
+    assert parse_tool_calls(reply)[0].arguments == {"sku": "LOAF-BLK-43", "offered_price_kobo": 3500000, "final": True}
+
+
+def test_a_400_that_holds_no_readable_call_is_still_an_error_with_the_hosts_reason() -> None:
+    with pytest.raises(ModelError, match="tool call validation failed"):
+        client_with(lambda _: tool_use_failed("nothing useful")).chat([], None)
+    with pytest.raises(ModelError, match="invalid model"):
+        client_with(lambda _: httpx.Response(400, json={"error": {"message": "invalid model"}})).chat([], None)

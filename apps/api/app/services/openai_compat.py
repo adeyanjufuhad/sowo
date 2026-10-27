@@ -6,6 +6,7 @@ translates to and from the OpenAI one here: tool-call ids, JSON-string arguments
 """
 
 import json
+import re
 import time
 from collections.abc import Callable
 from typing import Any
@@ -15,7 +16,36 @@ import httpx
 from app.services.ollama import ModelError
 
 RETRY_STATUSES = {429, 502, 503}
-MAX_RETRY_WAIT_SECONDS = 5.0
+MAX_RETRY_WAIT_SECONDS = 20.0
+MAX_RETRIES = 2
+
+
+_XML_FUNCTION = re.compile(r"<function[=/]\s*([A-Za-z_][\w.-]*)\s*>(.*?)</function>", re.DOTALL)
+_XML_PARAMETER = re.compile(r"<parameter[=/]\s*([A-Za-z_][\w.-]*)\s*>(.*?)</parameter>", re.DOTALL)
+
+
+def _typed(value: str) -> Any:
+    """XML carries everything as text; the tools take whole numbers and booleans."""
+    value = value.strip()
+    if re.fullmatch(r"-?\d+", value):
+        return int(value)
+    if value.lower() in ("true", "false"):
+        return value.lower() == "true"
+    return value
+
+
+def calls_from_failed_generation(text: str) -> list[dict[str, Any]]:
+    """Tool calls written in Qwen's XML layout, which some hosts reject before we see them.
+
+    Groq answers 400 tool_use_failed and returns the model's raw text as `failed_generation` when Qwen writes
+    <function=name><parameter=key>value</parameter></function> and slips on the syntax. The meaning is clear, so
+    read it. Whatever is read is still checked by the server's own tools like any other call.
+    """
+    calls = []
+    for name, body in _XML_FUNCTION.findall(text):
+        arguments = {key: _typed(value) for key, value in _XML_PARAMETER.findall(body)}
+        calls.append({"function": {"name": name, "arguments": arguments}})
+    return calls
 
 
 def to_openai_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -117,6 +147,12 @@ class OpenAICompatibleClient:
         try:
             response = self._post(payload)
             data = response.json()
+        except httpx.HTTPStatusError as exc:
+            recovered = self._recover_tool_call(exc.response)
+            if recovered is not None:
+                return recovered
+            # The host says why in the body (a bad tool call, a retired model, a limit); the status line doesn't.
+            raise ModelError(f"Model request failed: {exc} -- {exc.response.text[:600]}") from exc
         except (httpx.HTTPError, ValueError) as exc:
             raise ModelError(f"Model request failed: {exc}") from exc
         choices = data.get("choices") if isinstance(data, dict) else None
@@ -125,15 +161,30 @@ class OpenAICompatibleClient:
             raise ModelError("The model returned no message")
         return from_openai_message(message)
 
+    @staticmethod
+    def _recover_tool_call(response: httpx.Response) -> dict[str, Any] | None:
+        if response.status_code != 400:
+            return None
+        try:
+            error = response.json()["error"]
+            generated = error["failed_generation"] if error.get("code") == "tool_use_failed" else ""
+        except (ValueError, KeyError, TypeError):
+            return None
+        calls = calls_from_failed_generation(generated) if isinstance(generated, str) else []
+        return {"role": "assistant", "content": "", "tool_calls": calls} if calls else None
+
     def _post(self, payload: dict[str, Any]) -> httpx.Response:
-        """One POST, and one patient retry if a free tier says it is busy or we went over its per-minute limit."""
+        """One POST, and a couple of patient retries if a free tier says it is busy or a per-minute limit is hit."""
         response = self._http.post("/chat/completions", json=payload)
-        if response.status_code in RETRY_STATUSES:
+        for _ in range(MAX_RETRIES):
+            if response.status_code not in RETRY_STATUSES:
+                break
             try:
                 wait = float(response.headers.get("retry-after", "2"))
             except ValueError:
                 wait = 2.0
-            self._sleep(min(max(wait, 0.5), MAX_RETRY_WAIT_SECONDS))
+            # Hosts round the wait down a little, so add half a second.
+            self._sleep(min(max(wait + 0.5, 0.5), MAX_RETRY_WAIT_SECONDS))
             response = self._http.post("/chat/completions", json=payload)
         response.raise_for_status()
         return response
