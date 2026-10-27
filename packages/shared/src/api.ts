@@ -282,6 +282,29 @@ export interface MarkPaidResponse {
   message?: Message;
 }
 
+/* Accounts. The web app's server keeps the session token in an httpOnly cookie, so the browser sees only the vendor. */
+
+export interface AuthVendor {
+  id: string;
+  name: string;
+  email?: string;
+}
+
+export interface SignupRequest {
+  email: string;
+  password: string;
+  businessName: string;
+}
+
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface SessionResponse {
+  vendor: AuthVendor;
+}
+
 export interface ApiError {
   error: {
     code: "BAD_REQUEST" | "UNAUTHORIZED" | "NOT_FOUND" | "CONFLICT" | "INTERNAL";
@@ -337,6 +360,10 @@ export const endpoints = {
       "POST",
       "/simulator/payments",
     ),
+  signup: () => endpoint<SignupRequest, SessionResponse>("POST", "/auth/signup"),
+  login: () => endpoint<LoginRequest, SessionResponse>("POST", "/auth/login"),
+  logout: () => endpoint<void, { ok: boolean }>("POST", "/auth/logout"),
+  me: () => endpoint<void, SessionResponse>("GET", "/auth/me"),
   /** Bank-transfer mode: the simulator buyer says they have sent the money. */
   sendSimulatorReceipt: () =>
     endpoint<SimulatorReceiptRequest, SimulatorReceiptResponse>(
