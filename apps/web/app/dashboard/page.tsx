@@ -6,7 +6,7 @@ import { Dashboard } from "@/components/dashboard/dashboard";
 
 export const metadata: Metadata = {
   title: "Vendor dashboard",
-  description: "Ada's Footwear: chats Sowo is handling, orders to pack, and products with price, floor and stock.",
+  description: "Your shop: chats Sowo is handling, orders to pack, and products with price, floor and stock.",
 };
 
 export default function DashboardPage() {

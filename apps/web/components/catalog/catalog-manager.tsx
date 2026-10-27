@@ -48,7 +48,7 @@ function ProductRow({ product, onChange }: { product: Product; onChange: () => v
           <p className="truncate font-medium">{product.name}</p>
           <p className="font-mono text-xs text-muted">{product.sku}</p>
         </div>
-        <div className="flex items-center gap-3 text-sm">
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm whitespace-nowrap">
           <span className="font-mono">{formatNaira(product.basePriceKobo)}</span>
           <span className="text-xs text-muted" title="The lowest price you'll accept. Only you see it.">
             lowest {formatNaira(product.floorPriceKobo)}
@@ -56,7 +56,7 @@ function ProductRow({ product, onChange }: { product: Product; onChange: () => v
           <span className={product.stockOnHand === 0 ? "font-medium text-accent-strong" : "text-ink-soft"}>
             {product.stockOnHand === 0 ? "Sold out" : `${product.stockOnHand} in stock`}
           </span>
-          <span className="flex items-center">
+          <span className="-ml-3 flex items-center sm:ml-0">
             <button type="button" onClick={() => setEditing(true)} className="rounded-full px-3 py-1.5 text-ink-soft hover:bg-paper-deep hover:text-ink">
               Edit
             </button>

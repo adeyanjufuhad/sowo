@@ -34,8 +34,12 @@ export function AccountBar() {
 
   return (
     <div className="border-b border-line bg-paper-deep/50">
-      <div className="mx-auto flex h-9 max-w-7xl items-center justify-end gap-3 px-4 text-xs text-ink-soft sm:px-6">
-        {name ? <span>Signed in as <span className="font-medium text-ink">{name}</span></span> : null}
+      <div className="mx-auto flex h-9 max-w-7xl items-center justify-end gap-1 px-2 text-xs whitespace-nowrap text-ink-soft sm:gap-3 sm:px-6">
+        {name ? (
+          <span className="mr-auto hidden min-w-0 truncate sm:mr-0 sm:inline">
+            Signed in as <span className="font-medium text-ink">{name}</span>
+          </span>
+        ) : null}
         <Link
           href="/dashboard/catalog"
           className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 font-medium text-ink-soft transition-colors hover:bg-paper-deep hover:text-ink"

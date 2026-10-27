@@ -40,6 +40,19 @@ async function loadAll() {
   return { conversations, orders, products, at: Date.now() };
 }
 
+/** The signed-in shop's name. The offline demo is always Ada's Footwear. */
+function useShopName() {
+  const [name, setName] = useState<string | null>(USING_MOCK ? "Ada's Footwear" : null);
+  useEffect(() => {
+    if (USING_MOCK) return;
+    api
+      .me()
+      .then((res) => setName(res.vendor.name))
+      .catch(() => undefined); // a 401 sends the page to the sign-in screen by itself
+  }, []);
+  return name;
+}
+
 function ResetButton({ onReset }: { onReset: () => void }) {
   const [armed, setArmed] = useState(false);
 
@@ -77,6 +90,7 @@ export function Dashboard() {
   const tabParam = params.get("tab");
   const tab: Tab = TABS.includes(tabParam as Tab) ? (tabParam as Tab) : "chats";
   const chatId = params.get("chat");
+  const shopName = useShopName();
 
   const { data, error, refresh } = usePoll(loadAll, "dashboard");
 
@@ -167,9 +181,13 @@ export function Dashboard() {
               <span className="grid size-7 place-items-center rounded-lg bg-night text-paper shadow-sm">
                 <Store aria-hidden className="size-3.5" />
               </span>
-              Ada&apos;s Footwear
-              <span className="h-3 w-px bg-line" />
-              Vendor workspace
+              {shopName ? (
+                <>
+                  <span className="max-w-[16rem] truncate">{shopName}</span>
+                  <span className="hidden h-3 w-px bg-line sm:inline" />
+                </>
+              ) : null}
+              <span className={shopName ? "hidden sm:inline" : undefined}>Vendor workspace</span>
             </div>
             <h1 className="font-display text-[clamp(2rem,4vw,3.25rem)] leading-[1.02] font-semibold tracking-[-0.045em]">
               Your shop, at a glance.
@@ -195,13 +213,15 @@ export function Dashboard() {
                 }}
               />
             ) : null}
-            <Link
-              href="/try"
-              className="inline-flex h-10 items-center gap-2 rounded-xl bg-night px-4 text-xs font-semibold text-white shadow-lg shadow-night/15 transition-all hover:-translate-y-0.5 hover:bg-night-soft"
-            >
-              Buyer simulator
-              <ArrowUpRight aria-hidden className="size-4" />
-            </Link>
+            {USING_MOCK ? (
+              <Link
+                href="/try"
+                className="inline-flex h-10 items-center gap-2 rounded-xl bg-night px-4 text-xs font-semibold text-white shadow-lg shadow-night/15 transition-all hover:-translate-y-0.5 hover:bg-night-soft"
+              >
+                Buyer simulator
+                <ArrowUpRight aria-hidden className="size-4" />
+              </Link>
+            ) : null}
           </div>
         </header>
 
@@ -372,10 +392,12 @@ export function Dashboard() {
                           <MessagesSquare aria-hidden className="size-6" strokeWidth={1.5} />
                         </span>
                         <h3 className="mt-4 font-display text-lg font-semibold">Pick up a conversation</h3>
-                        <p className="mt-2 text-sm leading-6 text-muted">Choose a chat to read the negotiation, reply as Ada, or hand control back to Sowo.</p>
-                        <Link href="/try" className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-accent-strong underline-offset-4 hover:underline">
-                          Try the buyer simulator <ArrowUpRight aria-hidden className="size-3.5" />
-                        </Link>
+                        <p className="mt-2 text-sm leading-6 text-muted">Choose a chat to read the negotiation, reply yourself, or hand control back to Sowo.</p>
+                        {USING_MOCK ? (
+                          <Link href="/try" className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-accent-strong underline-offset-4 hover:underline">
+                            Try the buyer simulator <ArrowUpRight aria-hidden className="size-3.5" />
+                          </Link>
+                        ) : null}
                       </div>
                     </div>
                   )}

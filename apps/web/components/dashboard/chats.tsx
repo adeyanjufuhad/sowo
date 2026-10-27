@@ -3,7 +3,7 @@
 import { formatNaira, type Conversation, type Order } from "@sowo/shared";
 import { ArrowLeft, ArrowUp, Bot, ChevronDown, MessagesSquare, Package } from "lucide-react";
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
-import { api, ApiRequestError } from "@/lib/api";
+import { api, ApiRequestError, USING_MOCK } from "@/lib/api";
 import { initials, relativeTime, watTime } from "@/lib/format";
 import { summarizeToolCall } from "@/lib/tool-calls";
 import { cn } from "@/lib/utils";
@@ -34,7 +34,9 @@ export function ChatList({
     return (
       <div className="px-6 py-16 text-center text-sm text-muted">
         <MessagesSquare aria-hidden className="mx-auto mb-3 size-6" strokeWidth={1.5} />
-        No chats yet. Start one from the buyer simulator.
+        {USING_MOCK
+          ? "No chats yet. Start one from the buyer simulator."
+          : "No chats yet. When a buyer messages your WhatsApp number, the chat shows up here."}
       </div>
     );
   }
@@ -269,13 +271,13 @@ export function ChatThread({
         ) : null}
         <div className="flex items-center gap-2">
           <label htmlFor={inputId} className="sr-only">
-            Reply to {current.customerName} as Ada
+            Reply to {current.customerName}
           </label>
           <input
             id={inputId}
             value={draft}
             onChange={(e) => setDraft(e.target.value)}
-            placeholder="Reply as Ada…"
+            placeholder="Type your reply…"
             autoComplete="off"
             className="h-11 min-w-0 flex-1 rounded-full bg-paper px-4 text-base ring-1 ring-line outline-none placeholder:text-muted focus-visible:ring-2 focus-visible:ring-accent-strong"
           />
