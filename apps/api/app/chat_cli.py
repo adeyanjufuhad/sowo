@@ -12,7 +12,7 @@ import sys
 import httpx
 from sqlalchemy import select
 
-from app.config import get_settings
+from app.config import get_settings, require_development
 from app.db import SessionLocal, init_db
 from app.models import Conversation, MessageRole, Order, OrderStatus
 from app.seed import seed_data
@@ -57,6 +57,7 @@ def pay_latest(session) -> None:
 
 
 def main() -> int:
+    require_development("The terminal chat (it seeds the demo shop)")
     problem = check_ollama()
     if problem:
         print(problem)

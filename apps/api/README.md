@@ -23,6 +23,9 @@ cd apps/api
 python -m venv .venv && source .venv/bin/activate    # Windows: .venv\Scripts\activate
 pip install -e . --group dev
 cp .env.example .env                                  # then fill in your own values (never commit it)
+# For a demo on your own machine, also put these two lines in .env (see "Demo mode" below):
+#   ENVIRONMENT=development
+#   SIMULATOR_ENABLED=true
 
 python -m app.seed_demo                               # Ada's Footwear: products, delivery zones, a few chats
 uvicorn app.main:app --reload                         # http://localhost:8000/health
@@ -44,10 +47,14 @@ On Neon, use the pooled URL for `DATABASE_URL` and the direct one for `DATABASE_
 
 `tests/test_migrations.py` fails if a model changes without a migration. A database created before Alembic existed (tables but no `alembic_version`) is refused with a message: delete a development one, or run `alembic stamp head` if its schema is already current.
 
+### Demo mode
+
+Nothing demo-related is on by default. A fresh deployment has no shop, no products and no `/simulator/*` endpoints; vendors sign up and add their own catalog. To run the demo on your own machine, set `ENVIRONMENT=development` (allows the seed commands) and `SIMULATOR_ENABLED=true` (the web app's `/try` page) in your local `.env`. `python -m app.seed`, `python -m app.seed_demo` and `python -m app.chat_cli` all refuse to run unless `ENVIRONMENT=development`, so they can't fill a real database by accident. If a production deployment starts with the simulator on, it logs a warning.
+
 ### Try Qwen3 without WhatsApp or Paystack
 
 ```bash
-python -m app.chat_cli
+python -m app.chat_cli                                # needs ENVIRONMENT=development
 ```
 
 A terminal chat with the same agent, tools and server rules as the bot. It checks that Ollama is running and has the model, shows each tool call in grey, and `/pay` stands in for Paystack's webhook. It is the quickest way to see how Qwen3 copes with Pidgin, haggling and odd requests.
@@ -76,7 +83,8 @@ Everything comes from environment variables or `.env`. See [`.env.example`](.env
 | `REPLY_DELAY_SECONDS` | `3` | A pause before each WhatsApp reply so it feels like typing |
 | `STOCK_HOLD_MINUTES` | `15` | How long unpaid orders hold stock |
 | `SIMULATOR_VENDOR_NAME` | `Ada's Footwear` | The demo shop the simulator's chats belong to |
-| `SIMULATOR_ENABLED` | `true` | The `/simulator/*` endpoints behind the web app's demo page. Turn off when real buyers use the deployment |
+| `ENVIRONMENT` | `production` | `development` allows the demo commands (`app.seed`, `app.seed_demo`, `app.chat_cli`). Leave it unset on a real deployment |
+| `SIMULATOR_ENABLED` | `false` | The `/simulator/*` endpoints behind the web app's `/try` demo page. They have no sign-in, so keep them off where real buyers are |
 | `CORS_ORIGINS` | `http://localhost:3000` | Comma-separated origins allowed to call the API |
 
 ## Accounts and sign-in

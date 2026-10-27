@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -17,12 +18,15 @@ from app.routes_vendor import router as vendor_router
 from app.routes_webhooks import router as webhooks_router
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
     # No background polling: on a serverless database a query every few seconds keeps the compute awake all
     # month. Overdue holds are released when stock is read, when an order is placed and when orders are listed.
+    if settings.environment == "production" and settings.simulator_enabled:
+        logger.warning("SIMULATOR_ENABLED is on in production: /simulator/* has no sign-in and anyone can call it")
     init_db()
     yield
 

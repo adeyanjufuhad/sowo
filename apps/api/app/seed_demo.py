@@ -1,5 +1,6 @@
 from sqlalchemy import select
 
+from app.config import require_development
 from app.db import SessionLocal, init_db
 from app.models import Conversation, Message, MessageRole, Order, OrderItem, OrderStatus, Product
 from app.seed import seed_data
@@ -7,6 +8,7 @@ from app.seed import seed_data
 
 def main() -> None:
     """Create idempotent dashboard-only sample conversations and an order."""
+    require_development("Seeding the demo conversations")
     init_db()
     with SessionLocal() as session:
         vendor = seed_data(session)

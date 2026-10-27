@@ -1,5 +1,5 @@
 from functools import lru_cache
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
@@ -10,6 +10,9 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
+    # "production" (the default) never puts demo data in the database. Set "development" on your own machine to use
+    # `python -m app.seed`, `python -m app.seed_demo` and `python -m app.chat_cli`.
+    environment: Literal["development", "production"] = "production"
     database_url: str = "sqlite:///./sowo.db"
     # Neon (and other hosts with a connection pooler): the app uses the pooled DATABASE_URL, but migrations should
     # not run through PgBouncer, so give them the direct (unpooled) URL here. Empty means "use DATABASE_URL".
@@ -27,8 +30,9 @@ class Settings(BaseSettings):
     reply_delay_seconds: int = Field(default=3, ge=0)
     stock_hold_minutes: int = Field(default=15, ge=1)
 
-    # The /simulator/* endpoints power the demo page. Turn them off on a deployment that serves real buyers.
-    simulator_enabled: bool = True
+    # The /simulator/* endpoints power the web app's /try demo page and have no sign-in. Off unless asked for, so a
+    # deployment that serves real buyers never exposes them by accident.
+    simulator_enabled: bool = False
 
     # Qwen3 through Ollama
     ollama_timeout_seconds: float = Field(default=120.0, gt=0)
@@ -65,3 +69,12 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
+
+def require_development(task: str) -> None:
+    """Stop a command that writes demo data unless this is explicitly a development machine."""
+    if get_settings().environment != "development":
+        raise SystemExit(
+            f"{task} puts demo data in the database, so it only runs when ENVIRONMENT=development "
+            "(add it to your own .env, never to a real deployment's)."
+        )

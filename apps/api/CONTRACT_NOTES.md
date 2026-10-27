@@ -12,7 +12,7 @@ The Stage 4 wording calls the tool-call field `name`, while the shared TypeScrip
 
 ## Stage 5: the agent, WhatsApp, Paystack and the simulator
 
-`POST /simulator/messages` and `POST /simulator/payments` are implemented as in the contract, plus a `SIMULATOR_ENABLED` switch (default on) to turn both off for a deployment that serves real buyers. `/simulator/payments` only ever touches orders of simulator conversations, never a real buyer's.
+`POST /simulator/messages` and `POST /simulator/payments` are implemented as in the contract, plus a `SIMULATOR_ENABLED` switch (default **off**; turn it on for a local demo) so a deployment that serves real buyers never exposes them. `/simulator/payments` only ever touches orders of simulator conversations, never a real buyer's.
 
 Where the real backend differs from, or adds to, `docs/api-contract.md` (for its owner to fold in):
 

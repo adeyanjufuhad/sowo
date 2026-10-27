@@ -1,6 +1,7 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.config import require_development
 from app.db import SessionLocal, init_db
 from app.models import DeliveryZone, Product, Vendor
 
@@ -42,6 +43,7 @@ def seed_data(session: Session) -> Vendor:
 
 
 def main() -> None:
+    require_development("Seeding the demo shop")
     init_db()
     with SessionLocal() as session:
         seed_data(session)
