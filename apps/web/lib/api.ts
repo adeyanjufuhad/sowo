@@ -12,6 +12,7 @@ import {
   type ResponseOf,
   type SimulatorMessageRequest,
   type SimulatorPaymentRequest,
+  type SimulatorReceiptRequest,
 } from "@sowo/shared";
 import { ApiRequestError } from "./api-error";
 import { resetLocalMock, runLocal } from "./mock/local";
@@ -62,12 +63,17 @@ const httpApi = {
   listProducts: () => call(endpoints.listProducts()),
   sendSimulatorMessage: (request: SimulatorMessageRequest) => call(endpoints.sendSimulatorMessage(), request),
   simulatePayment: (request: SimulatorPaymentRequest) => call(endpoints.simulatePayment(), request),
+  sendSimulatorReceipt: (request: SimulatorReceiptRequest) => call(endpoints.sendSimulatorReceipt(), request),
+  markOrderPaid: (id: string) => call(endpoints.markOrderPaid(id)),
 };
 
 export type SowoApi = typeof httpApi;
 
 // A short pause on Sowo's replies so the typing indicator has a moment to show.
 const REPLY_LATENCY_MS = 650;
+
+// Bank-transfer mode confirms payments through the real backend; the offline demo only has Paystack-style checkout.
+const needsBackend = () => Promise.reject(new ApiRequestError(409, "Bank transfers need the real backend. Set NEXT_PUBLIC_API_URL."));
 
 const localApi: SowoApi = {
   listConversations: () => runLocal((s) => ({ conversations: listConversations(s) })),
@@ -89,6 +95,8 @@ const localApi: SowoApi = {
     ),
   simulatePayment: (request) =>
     runLocal((s, now) => settlePayment(s, request.reference, request.outcome, now), REPLY_LATENCY_MS),
+  sendSimulatorReceipt: needsBackend,
+  markOrderPaid: needsBackend,
 };
 
 export const api: SowoApi = USING_MOCK ? localApi : httpApi;

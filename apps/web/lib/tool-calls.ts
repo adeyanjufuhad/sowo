@@ -41,12 +41,17 @@ export function summarizeToolCall(call: ToolCall): ToolCallSummary {
         server: `${formatNaira(q.subtotalKobo)} + ${formatNaira(q.deliveryFeeKobo)} delivery = ${formatNaira(q.totalKobo)}`,
       };
     }
-    case "request_payment":
+    case "request_payment": {
+      const how = call.output.method === "MANUAL" ? "bank transfer to Ada" : "Paystack link";
       return {
         tool: call.tool,
         model: `pay quote ${call.input.quoteId}`,
         // The reference (SW-…) reads well; the order id may be a database UUID.
-        server: `order ${call.output.reference} · Paystack link · ${formatNaira(call.output.amountKobo)}`,
+        server: `order ${call.output.reference} · ${how} · ${formatNaira(call.output.amountKobo)}`,
       };
+    }
+    default:
+      // A tool this build doesn't know yet (the backend may be newer): show it plainly rather than crash.
+      return { tool: (call as { tool: string }).tool, model: "", server: "" };
   }
 }
