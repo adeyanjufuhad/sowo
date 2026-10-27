@@ -5,12 +5,12 @@ import logging
 
 import pytest
 from fastapi.testclient import TestClient
+from helpers import BUYER_PHONE, WHATSAPP_NUMBER_ID, whatsapp_payload
 from sqlalchemy.exc import OperationalError
 
 from app import observability
 from app.config import Settings, get_settings
 from app.ratelimit import SlidingWindowLimiter
-from tests.helpers import BUYER_PHONE, WHATSAPP_NUMBER_ID, whatsapp_payload
 
 PASSWORD = "a long enough password"
 
@@ -252,7 +252,7 @@ def test_a_crash_is_logged_with_its_request_id_and_answered_without_details(
 
 
 def test_a_webhook_message_is_still_handled_under_the_new_middleware(env: object, anonymous_client: TestClient) -> None:
-    from tests.helpers import signed
+    from helpers import signed
 
     body, headers = signed(whatsapp_payload("hi", phone=BUYER_PHONE, phone_number_id=WHATSAPP_NUMBER_ID))
     assert anonymous_client.post("/webhooks/whatsapp", content=body, headers=headers).status_code == 200
