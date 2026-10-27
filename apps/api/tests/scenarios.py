@@ -4,15 +4,19 @@ from typing import Any
 
 from conftest import Env
 from helpers import BUYER_PHONE, ScriptedModel, Turn, call, last_tool_result, say
+from sqlalchemy import select
 
 from app.config import get_settings
-from app.models import Conversation, Message, MessageRole
+from app.models import Conversation, Message, MessageRole, Vendor
 from app.services import flow
 
 
 def new_chat(env: Env, *, simulator: bool = True, phone: str | None = None, name: str = "Tester") -> str:
     with env.session() as session:
+        vendor = session.scalar(select(Vendor))
+        assert vendor is not None
         conversation = Conversation(
+            vendor_id=vendor.id,
             customer_phone=phone or (f"sim-{name.lower()}" if simulator else BUYER_PHONE),
             customer_name=name,
             is_simulator=simulator,

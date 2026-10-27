@@ -23,6 +23,7 @@ from app.models import (
     MessageRole,
     Order,
     PaymentMethod,
+    Vendor,
     utc_now,
 )
 from app.services import guard, payments, whatsapp
@@ -30,6 +31,7 @@ from app.services.agent import AgentReply, run_agent
 from app.services.money import format_naira
 from app.services.ollama import ChatModel, OllamaError
 from app.services.orders import mark_order_paid
+from app.services.vendors import default_vendor
 from app.services.whatsapp import InboundMessage
 
 logger = logging.getLogger(__name__)
@@ -55,14 +57,18 @@ def conversation_lock(conversation_id: str) -> threading.Lock:
 # -- conversations and messages -------------------------------------------------------------------------
 
 
-def get_or_create_conversation(session: Session, phone: str, name: str) -> Conversation:
+def get_or_create_conversation(session: Session, vendor: Vendor, phone: str, name: str) -> Conversation:
     conversation = session.scalar(
         select(Conversation)
-        .where(Conversation.customer_phone == phone, Conversation.is_simulator.is_(False))
+        .where(
+            Conversation.vendor_id == vendor.id,
+            Conversation.customer_phone == phone,
+            Conversation.is_simulator.is_(False),
+        )
         .order_by(Conversation.created_at.desc())
     )
     if conversation is None:
-        conversation = Conversation(customer_phone=phone, customer_name=name, is_simulator=False)
+        conversation = Conversation(vendor_id=vendor.id, customer_phone=phone, customer_name=name, is_simulator=False)
         session.add(conversation)
     elif name and not conversation.customer_name:
         conversation.customer_name = name
@@ -187,7 +193,11 @@ def submit_simulated_receipt(
 
 def handle_inbound(session: Session, inbound: InboundMessage, model: ChatModel, settings: Settings) -> None:
     """One WhatsApp message from a buyer."""
-    conversation = get_or_create_conversation(session, inbound.phone, inbound.name)
+    vendor = default_vendor(session)
+    if vendor is None:
+        logger.warning("A WhatsApp message arrived but no vendor has signed up yet")
+        return
+    conversation = get_or_create_conversation(session, vendor, inbound.phone, inbound.name)
     text = inbound.text if inbound.kind == "text" else f"[{inbound.kind} message]"
     try:
         add_message(session, conversation, MessageRole.BUYER, text, whatsapp_message_id=inbound.id)

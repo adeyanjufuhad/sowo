@@ -9,7 +9,7 @@ def main() -> None:
     """Create idempotent dashboard-only sample conversations and an order."""
     init_db()
     with SessionLocal() as session:
-        seed_data(session)
+        vendor = seed_data(session)
         product = session.scalar(select(Product).where(Product.sku == "LOAF-BLK-43"))
         brown_product = session.scalar(select(Product).where(Product.sku == "LOAF-BRN-42"))
         assert product is not None
@@ -19,6 +19,7 @@ def main() -> None:
         )
         if conversation is None:
             conversation = Conversation(
+                vendor_id=vendor.id,
                 customer_phone="2348000000001",
                 customer_name="Funke Adeyemi",
                 is_simulator=True,
@@ -61,6 +62,7 @@ def main() -> None:
         )
         if second_conversation is None:
             second_conversation = Conversation(
+                vendor_id=vendor.id,
                 customer_phone="2348000000002",
                 customer_name="Ibrahim Musa",
             )

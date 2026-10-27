@@ -90,3 +90,39 @@ def test_the_postgres_schema_creates_its_enum_types(monkeypatch: pytest.MonkeyPa
 )
 def test_database_urls_are_pointed_at_the_installed_driver(given: str, expected: str) -> None:
     assert normalize_database_url(given) == expected
+
+
+def _insert_old_data(engine, *, with_vendor: bool) -> None:
+    """A database as it was at migration 0001: conversations, and (maybe) a vendor, but no vendor_id column yet."""
+    with engine.begin() as connection:
+        if with_vendor:
+            connection.execute(text("INSERT INTO vendors (id, name) VALUES ('v-ada', 'Ada''s Footwear')"))
+        connection.execute(
+            text(
+                "INSERT INTO conversations (id, customer_phone, customer_name, status, ai_paused, greeted, is_simulator) "
+                "VALUES ('c1', '2348012345678', 'Funke', 'ACTIVE', 0, 0, 0)"
+            )
+        )
+
+
+def test_existing_conversations_are_given_to_the_first_vendor(engine) -> None:
+    with engine.begin() as connection:
+        command.upgrade(alembic_config(connection), "0001")
+    _insert_old_data(engine, with_vendor=True)
+
+    database.init_db()
+
+    with engine.connect() as connection:
+        assert connection.execute(text("SELECT vendor_id FROM conversations")).scalar_one() == "v-ada"
+
+
+def test_conversations_with_no_vendor_get_a_placeholder_owner(engine) -> None:
+    with engine.begin() as connection:
+        command.upgrade(alembic_config(connection), "0001")
+    _insert_old_data(engine, with_vendor=False)
+
+    database.init_db()
+
+    with engine.connect() as connection:
+        owner = connection.execute(text("SELECT vendor_id FROM conversations")).scalar_one()
+        assert connection.execute(text("SELECT name FROM vendors WHERE id = :id"), {"id": owner}).scalar_one() == "My shop"

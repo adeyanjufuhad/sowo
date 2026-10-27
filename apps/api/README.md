@@ -81,6 +81,20 @@ Everything comes from environment variables or `.env`. See [`.env.example`](.env
 | `SIMULATOR_ENABLED` | `true` | The `/simulator/*` endpoints behind the web app's demo page. Turn off when real buyers use the deployment |
 | `CORS_ORIGINS` | `http://localhost:3000` | Comma-separated origins allowed to call the API |
 
+## Accounts and sign-in
+
+Vendors sign up with an email, a password and a business name. Passwords are hashed with Argon2id. A sign-in creates a session, and only a SHA-256 hash of its token is stored, so a copy of the database can't be replayed and a session can be revoked by deleting its row. Sessions last 30 days.
+
+The API does not set cookies. The web app's server (a Next.js route handler) calls `/auth/login`, keeps the token in an httpOnly cookie on its own domain, and sends it to this API as `Authorization: Bearer <token>`. The browser never talks to the API directly.
+
+Every dashboard route (`/conversations`, `/orders`, `/products`, `/orders/{id}/mark-paid` and the rest) needs that header and only shows the signed-in vendor's own data. Another vendor's conversation or order looks exactly like one that doesn't exist (404). The webhooks stay open because they carry their own signatures, and `/simulator/*` is controlled by `SIMULATOR_ENABLED`.
+
+A vendor created before accounts existed, or by the demo seed, has no login. Give it one from the terminal (the password is asked for there):
+
+```bash
+python -m app.claim_vendor "Ada's Footwear" ada@example.com
+```
+
 ## Endpoints
 
 The REST endpoints are specified in [`docs/api-contract.md`](../../docs/api-contract.md); the shared types are in `packages/shared`.
@@ -93,6 +107,8 @@ The REST endpoints are specified in [`docs/api-contract.md`](../../docs/api-cont
 | `POST /simulator/messages` | The `/try` page: a buyer message, answered by the same agent, without WhatsApp |
 | `POST /simulator/payments` | The `/try` page: stands in for Paystack's webhook. Only touches simulator orders. Refused for bank-transfer orders |
 | `POST /simulator/receipts` | The `/try` page in `manual` mode: the buyer says they've sent the transfer. Flags the order for Ada, pays nothing |
+| `POST /auth/signup`, `POST /auth/login` | Create an account / sign in. Return `{ vendor, sessionToken, expiresAt }` |
+| `POST /auth/logout`, `GET /auth/me` | End the current session / who am I |
 | `POST /orders/{id}/mark-paid` | Ada confirms a bank-transfer order has reached her account. Refused for Paystack orders |
 | `GET /webhooks/whatsapp` | Meta's one-off verification handshake |
 | `POST /webhooks/whatsapp` | Buyer messages. Needs a valid `X-Hub-Signature-256` |

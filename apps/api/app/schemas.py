@@ -126,3 +126,31 @@ class SimulatorReceiptResponse(BaseModel):
 class MarkPaidResponse(BaseModel):
     order: OrderResponse
     message: MessageResponse | None = None
+
+
+class SignupRequest(BaseModel):
+    email: str
+    password: str
+    businessName: str
+
+
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+
+class VendorResponse(BaseModel):
+    id: str
+    name: str
+    email: str | None = None
+
+
+class AuthResponse(BaseModel):
+    vendor: VendorResponse
+    # Returned once. The web app's server keeps it in an httpOnly cookie and sends it back as a bearer token.
+    sessionToken: str
+    expiresAt: str
+
+
+class MeResponse(BaseModel):
+    vendor: VendorResponse

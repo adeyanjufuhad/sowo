@@ -25,6 +25,13 @@ Where the real backend differs from, or adds to, `docs/api-contract.md` (for its
 - **Fulfilment.** Paid orders report `PACKAGING`. There is no way yet to move an order to `SHIPPED` or `DELIVERED`.
 - **Conversation `CLOSED`** is still never produced.
 
+### Accounts and sign-in
+
+- **Every dashboard endpoint now needs `Authorization: Bearer <sessionToken>`** and returns only the signed-in vendor's data: `GET /conversations`, `GET /conversations/:id/messages`, `POST /conversations/:id/pause`, `.../resume`, `.../messages`, `GET /orders`, `GET /products`, `POST /orders/:id/mark-paid`. Another vendor's id is a `404`. Without a valid token the response is `401` with `{ "error": { "code": "UNAUTHORIZED", "message": "Sign in to continue" } }` and a `WWW-Authenticate: Bearer` header. `ApiError.error.code` gains `"UNAUTHORIZED"`.
+- **New:** `POST /auth/signup` `{ email, password, businessName }` (`201`, `400` with a readable message, `409` for a taken email or business name), `POST /auth/login` `{ email, password }` (`401` "Incorrect email or password" for both a wrong password and an unknown email), `POST /auth/logout` (revokes the token used), `GET /auth/me`. The sign-up and login responses are `{ vendor: { id, name, email }, sessionToken, expiresAt }`. The token is shown once; the API stores only its hash.
+- **Not authenticated:** `/health`, `/webhooks/*` (signatures) and `/simulator/*` (gated by `SIMULATOR_ENABLED`). Simulator chats currently belong to the oldest vendor.
+- **Tables and columns.** `vendors.email`, `vendors.password_hash` and `vendors.created_at`; new `vendor_sessions`; `conversations.vendor_id` (not null, existing rows go to the first vendor by name). Migration `0002`.
+
 ### Bank-transfer mode (`PAYMENT_MODE=manual`)
 
 - **`Order.paymentMethod`** (`"PAYSTACK" | "MANUAL"`) and **`Order.receiptReportedAt`** (ISO string, bank transfers only) are new optional fields. The shared `Order` type has both.

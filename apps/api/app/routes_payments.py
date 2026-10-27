@@ -11,8 +11,9 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.db import get_db
-from app.models import Order, OrderStatus, PaymentMethod
-from app.routes import _message_response, _order_response
+from app.deps import CurrentVendor
+from app.models import OrderStatus, PaymentMethod
+from app.routes import _message_response, _order_response, owned_order
 from app.schemas import MarkPaidResponse
 from app.services import flow, payments
 from app.services.orders import mark_order_paid
@@ -22,10 +23,8 @@ SessionDependency = Annotated[Session, Depends(get_db)]
 
 
 @router.post("/orders/{order_id}/mark-paid", response_model=MarkPaidResponse, response_model_exclude_none=True)
-def mark_bank_transfer_paid(order_id: str, session: SessionDependency) -> MarkPaidResponse:
-    order = session.get(Order, order_id)
-    if order is None:
-        raise HTTPException(status_code=404, detail=f"Order {order_id} not found")
+def mark_bank_transfer_paid(order_id: str, session: SessionDependency, vendor: CurrentVendor) -> MarkPaidResponse:
+    order = owned_order(session, vendor, order_id)
     if order.payment_method != PaymentMethod.MANUAL:
         raise HTTPException(status_code=409, detail="This order is paid through Paystack, which confirms it itself")
     if order.status == OrderStatus.PAID:  # a double tap: already done, say so without a second receipt

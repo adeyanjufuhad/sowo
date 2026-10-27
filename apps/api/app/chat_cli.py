@@ -64,8 +64,10 @@ def main() -> int:
     settings = get_settings()
     init_db()
     with SessionLocal() as session:
-        seed_data(session)
-        conversation = Conversation(customer_phone="cli-buyer", customer_name="You", is_simulator=True)
+        vendor = seed_data(session)
+        conversation = Conversation(
+            vendor_id=vendor.id, customer_phone="cli-buyer", customer_name="You", is_simulator=True
+        )
         session.add(conversation)
         session.commit()
         print(f"Chatting with Sowo on {settings.ollama_model}. Type /pay to pay, /quit to leave.\n")

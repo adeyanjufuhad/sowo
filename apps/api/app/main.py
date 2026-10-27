@@ -9,6 +9,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from app.config import get_settings
 from app.db import init_db
 from app.routes import router
+from app.routes_auth import router as auth_router
 from app.routes_payments import router as payments_router
 from app.routes_simulator import router as simulator_router
 from app.routes_webhooks import router as webhooks_router
@@ -33,6 +34,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.include_router(router)
+app.include_router(auth_router)
 app.include_router(payments_router)
 app.include_router(webhooks_router)
 app.include_router(simulator_router)
@@ -40,9 +42,13 @@ app.include_router(simulator_router)
 
 @app.exception_handler(StarletteHTTPException)
 async def http_error_handler(_: object, exc: StarletteHTTPException) -> JSONResponse:
-    codes = {400: "BAD_REQUEST", 404: "NOT_FOUND", 409: "CONFLICT"}
+    codes = {400: "BAD_REQUEST", 401: "UNAUTHORIZED", 404: "NOT_FOUND", 409: "CONFLICT"}
     message = exc.detail if isinstance(exc.detail, str) else "Request failed"
-    return JSONResponse(status_code=exc.status_code, content={"error": {"code": codes.get(exc.status_code, "INTERNAL"), "message": message}})
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"error": {"code": codes.get(exc.status_code, "INTERNAL"), "message": message}},
+        headers=exc.headers,
+    )
 
 
 @app.exception_handler(RequestValidationError)

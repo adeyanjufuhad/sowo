@@ -284,7 +284,7 @@ export interface MarkPaidResponse {
 
 export interface ApiError {
   error: {
-    code: "BAD_REQUEST" | "NOT_FOUND" | "CONFLICT" | "INTERNAL";
+    code: "BAD_REQUEST" | "UNAUTHORIZED" | "NOT_FOUND" | "CONFLICT" | "INTERNAL";
     message: string;
   };
 }

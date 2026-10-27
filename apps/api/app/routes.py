@@ -6,6 +6,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db import get_db
+from app.deps import CurrentVendor
 from app.models import (
     Conversation,
     ConversationStatus,
@@ -15,6 +16,7 @@ from app.models import (
     OrderItem,
     OrderStatus,
     Product,
+    Vendor,
 )
 from app.schemas import (
     ConversationEnvelope,
@@ -102,19 +104,37 @@ def _not_found(kind: str, identifier: str) -> HTTPException:
     return HTTPException(status_code=404, detail=f"{kind} {identifier} not found")
 
 
+def owned_conversation(session: Session, vendor: Vendor, conversation_id: str) -> Conversation:
+    """The vendor's own conversation. Someone else's looks exactly like one that doesn't exist."""
+    conversation = session.get(Conversation, conversation_id)
+    if conversation is None or conversation.vendor_id != vendor.id:
+        raise _not_found("Conversation", conversation_id)
+    return conversation
+
+
+def owned_order(session: Session, vendor: Vendor, order_id: str) -> Order:
+    order = session.get(Order, order_id)
+    conversation = session.get(Conversation, order.conversation_id) if order else None
+    if order is None or conversation is None or conversation.vendor_id != vendor.id:
+        raise _not_found("Order", order_id)
+    return order
+
+
 @router.get("/conversations", response_model=ListConversationsResponse)
-def list_conversations(session: SessionDependency) -> ListConversationsResponse:
-    conversations = list(session.scalars(select(Conversation).order_by(Conversation.created_at.desc())))
+def list_conversations(session: SessionDependency, vendor: CurrentVendor) -> ListConversationsResponse:
+    conversations = list(
+        session.scalars(
+            select(Conversation).where(Conversation.vendor_id == vendor.id).order_by(Conversation.created_at.desc())
+        )
+    )
     rendered = [_conversation_response(session, conversation) for conversation in conversations]
     rendered.sort(key=lambda conversation: conversation.lastMessageAt, reverse=True)
     return ListConversationsResponse(conversations=rendered)
 
 
 @router.get("/conversations/{conversation_id}/messages", response_model=ListMessagesResponse)
-def list_messages(conversation_id: str, session: SessionDependency) -> ListMessagesResponse:
-    conversation = session.get(Conversation, conversation_id)
-    if conversation is None:
-        raise _not_found("Conversation", conversation_id)
+def list_messages(conversation_id: str, session: SessionDependency, vendor: CurrentVendor) -> ListMessagesResponse:
+    conversation = owned_conversation(session, vendor, conversation_id)
     messages = list(
         session.scalars(
             select(Message)
@@ -129,24 +149,20 @@ def list_messages(conversation_id: str, session: SessionDependency) -> ListMessa
 
 
 @router.post("/conversations/{conversation_id}/pause", response_model=ConversationEnvelope)
-def pause_conversation(conversation_id: str, session: SessionDependency) -> ConversationEnvelope:
-    with session.begin():
-        conversation = session.get(Conversation, conversation_id)
-        if conversation is None:
-            raise _not_found("Conversation", conversation_id)
-        conversation.ai_paused = True
-        conversation.status = ConversationStatus.PAUSED
+def pause_conversation(conversation_id: str, session: SessionDependency, vendor: CurrentVendor) -> ConversationEnvelope:
+    conversation = owned_conversation(session, vendor, conversation_id)
+    conversation.ai_paused = True
+    conversation.status = ConversationStatus.PAUSED
+    session.commit()
     return ConversationEnvelope(conversation=_conversation_response(session, conversation))
 
 
 @router.post("/conversations/{conversation_id}/resume", response_model=ConversationEnvelope)
-def resume_conversation(conversation_id: str, session: SessionDependency) -> ConversationEnvelope:
-    with session.begin():
-        conversation = session.get(Conversation, conversation_id)
-        if conversation is None:
-            raise _not_found("Conversation", conversation_id)
-        conversation.ai_paused = False
-        conversation.status = ConversationStatus.ACTIVE
+def resume_conversation(conversation_id: str, session: SessionDependency, vendor: CurrentVendor) -> ConversationEnvelope:
+    conversation = owned_conversation(session, vendor, conversation_id)
+    conversation.ai_paused = False
+    conversation.status = ConversationStatus.ACTIVE
+    session.commit()
     return ConversationEnvelope(conversation=_conversation_response(session, conversation))
 
 
@@ -156,20 +172,16 @@ def resume_conversation(conversation_id: str, session: SessionDependency) -> Con
     response_model_exclude_none=True,
 )
 def send_vendor_reply(
-    conversation_id: str, payload: VendorReplyRequest, session: SessionDependency
+    conversation_id: str, payload: VendorReplyRequest, session: SessionDependency, vendor: CurrentVendor
 ) -> VendorReplyResponse:
     if not payload.body.strip():
         raise HTTPException(status_code=400, detail="body must not be empty")
-    with session.begin():
-        conversation = session.get(Conversation, conversation_id)
-        if conversation is None:
-            raise _not_found("Conversation", conversation_id)
-        conversation.ai_paused = True
-        conversation.status = ConversationStatus.PAUSED
-        message = Message(conversation_id=conversation.id, role=MessageRole.VENDOR, text=payload.body.strip())
-        session.add(message)
-        session.flush()
-    session.refresh(message)
+    conversation = owned_conversation(session, vendor, conversation_id)
+    conversation.ai_paused = True
+    conversation.status = ConversationStatus.PAUSED
+    message = Message(conversation_id=conversation.id, role=MessageRole.VENDOR, text=payload.body.strip())
+    session.add(message)
+    session.commit()
     if not conversation.is_simulator:
         send_whatsapp_text(conversation.customer_phone, message.text)
     return VendorReplyResponse(
@@ -220,16 +232,25 @@ def _order_response(session: Session, order: Order) -> OrderResponse:
 
 
 @router.get("/orders", response_model=ListOrdersResponse, response_model_exclude_none=True)
-def list_orders(session: SessionDependency) -> ListOrdersResponse:
+def list_orders(session: SessionDependency, vendor: CurrentVendor) -> ListOrdersResponse:
     expire_holds(session)  # release overdue holds now, since nothing polls for them in the background
     session.commit()
-    orders = list(session.scalars(select(Order).order_by(Order.created_at.desc(), Order.id.desc())))
+    orders = list(
+        session.scalars(
+            select(Order)
+            .join(Conversation, Order.conversation_id == Conversation.id)
+            .where(Conversation.vendor_id == vendor.id)
+            .order_by(Order.created_at.desc(), Order.id.desc())
+        )
+    )
     return ListOrdersResponse(orders=[_order_response(session, order) for order in orders])
 
 
 @router.get("/products", response_model=ListProductsResponse)
-def list_products(session: SessionDependency) -> ListProductsResponse:
-    products = list(session.scalars(select(Product).order_by(Product.name.asc())))
+def list_products(session: SessionDependency, vendor: CurrentVendor) -> ListProductsResponse:
+    products = list(
+        session.scalars(select(Product).where(Product.vendor_id == vendor.id).order_by(Product.name.asc()))
+    )
     return ListProductsResponse(
         products=[
             ProductResponse(

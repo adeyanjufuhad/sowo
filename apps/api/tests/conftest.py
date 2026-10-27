@@ -1,6 +1,7 @@
 """Shared setup: a throwaway database, fixed settings, and recorders in place of WhatsApp and Paystack."""
 
 import json
+import shutil
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -8,6 +9,7 @@ from typing import Any
 
 import httpx
 import pytest
+from alembic import command
 from fastapi.testclient import TestClient
 from helpers import (
     APP_SECRET,
@@ -16,6 +18,7 @@ from helpers import (
     PAYSTACK_SECRET,
     VENDOR_PHONE,
     VERIFY_TOKEN,
+    sign_in_vendor,
 )
 from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
@@ -23,7 +26,7 @@ from sqlalchemy.orm import Session, sessionmaker
 import app.db as database
 from app.config import Settings, get_settings
 from app.main import app
-from app.models import Conversation, Product
+from app.models import Conversation, Product, Vendor
 from app.seed import seed_data
 from app.services import paystack, whatsapp
 
@@ -62,8 +65,20 @@ def _record(into: list[dict[str, Any]], respond: Callable[[httpx.Request], httpx
     return httpx.MockTransport(handler)
 
 
+@pytest.fixture(scope="session")
+def migrated_template(tmp_path_factory: pytest.TempPathFactory) -> Path:
+    """An empty database migrated to the latest schema, built once; each test starts from a copy."""
+    path = tmp_path_factory.mktemp("template") / "template.db"
+    engine = database.create_database_engine(f"sqlite:///{path}")
+    with engine.begin() as connection:
+        command.upgrade(database.alembic_config(connection), "head")
+    engine.dispose()
+    return path
+
+
 @pytest.fixture
-def env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Env]:
+def env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, migrated_template: Path) -> Iterator[Env]:
+    shutil.copy(migrated_template, tmp_path / "api.db")
     engine = database.create_database_engine(f"sqlite:///{tmp_path / 'api.db'}")
     sessions = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
     monkeypatch.setattr(database, "engine", engine)
@@ -116,8 +131,20 @@ def env(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Iterator[Env]:
 
 
 @pytest.fixture
-def client(env: Env) -> Iterator[TestClient]:
+def anonymous_client(env: Env) -> Iterator[TestClient]:
+    """A client that is not signed in."""
     with TestClient(app) as test_client:
+        yield test_client
+
+
+@pytest.fixture
+def client(env: Env) -> Iterator[TestClient]:
+    """A client signed in as Ada, the vendor who owns the seeded shop."""
+    with env.session() as session:
+        ada = session.scalar(select(Vendor))
+        assert ada is not None
+        token = sign_in_vendor(session, ada)
+    with TestClient(app, headers={"Authorization": f"Bearer {token}"}) as test_client:
         yield test_client
 
 
@@ -134,3 +161,16 @@ def manual(env: Env, monkeypatch: pytest.MonkeyPatch) -> Env:
         monkeypatch.setenv(name, value)
     get_settings.cache_clear()
     return env
+
+
+@pytest.fixture(autouse=True)
+def cheap_password_hashing(monkeypatch: pytest.MonkeyPatch) -> Iterator[None]:
+    """Argon2 is deliberately slow. Tests use the same algorithm with minimal cost so the suite stays quick."""
+    from argon2 import PasswordHasher
+
+    from app.services import auth
+
+    monkeypatch.setattr(auth, "_hasher", PasswordHasher(time_cost=1, memory_cost=8, parallelism=1))
+    auth._dummy_hash.cache_clear()
+    yield
+    auth._dummy_hash.cache_clear()

@@ -26,6 +26,7 @@ from app.schemas import (
 )
 from app.services import flow, payments
 from app.services.orders import mark_order_paid
+from app.services.vendors import default_vendor
 
 SessionDependency = Annotated[Session, Depends(get_db)]
 
@@ -50,7 +51,11 @@ def send_simulator_message(
         if conversation is None or not conversation.is_simulator:
             raise HTTPException(status_code=404, detail=f"Conversation {payload.conversationId} not found")
     else:
+        vendor = default_vendor(session)
+        if vendor is None:
+            raise HTTPException(status_code=409, detail="No vendor has signed up yet")
         conversation = Conversation(
+            vendor_id=vendor.id,
             customer_phone=f"sim-{uuid4().hex[:10]}",
             customer_name=(payload.customerName or "Demo buyer").strip()[:120] or "Demo buyer",
             is_simulator=True,

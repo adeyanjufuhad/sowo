@@ -51,8 +51,24 @@ class Vendor(Base):
     __tablename__ = "vendors"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     name: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
+    # Login. Both stay empty for a vendor created before accounts existed (or by the demo seed) until they are claimed.
+    email: Mapped[str | None] = mapped_column(String(254), unique=True)
+    password_hash: Mapped[str | None] = mapped_column(String(255))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=func.now())
     products: Mapped[list["Product"]] = relationship(back_populates="vendor")
     delivery_zones: Mapped[list["DeliveryZone"]] = relationship(back_populates="vendor")
+
+
+class VendorSession(Base):
+    """A signed-in dashboard session. Only a hash of the token is stored, so a database leak can't be replayed."""
+
+    __tablename__ = "vendor_sessions"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    vendor_id: Mapped[str] = mapped_column(ForeignKey("vendors.id"), nullable=False, index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=func.now())
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_used_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=func.now())
 
 
 class Product(Base):
@@ -83,6 +99,7 @@ class DeliveryZone(Base):
 class Conversation(Base):
     __tablename__ = "conversations"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    vendor_id: Mapped[str] = mapped_column(ForeignKey("vendors.id"), nullable=False, index=True)
     customer_phone: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
     customer_name: Mapped[str] = mapped_column(String(120), nullable=False, default="")
     status: Mapped[ConversationStatus] = mapped_column(Enum(ConversationStatus), nullable=False, default=ConversationStatus.ACTIVE)

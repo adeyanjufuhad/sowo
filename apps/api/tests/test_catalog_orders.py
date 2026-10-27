@@ -41,8 +41,8 @@ def make_session(tmp_path: Path) -> Session:
                 stock=1,
             ),
             DeliveryZone(vendor_id=vendor.id, area="Ikeja", fee_kobo=250000),
-            Conversation(customer_phone="2348012345678"),
-            Conversation(customer_phone="2348098765432"),
+            Conversation(vendor_id=vendor.id, customer_phone="2348012345678"),
+            Conversation(vendor_id=vendor.id, customer_phone="2348098765432"),
         ]
     )
     session.commit()

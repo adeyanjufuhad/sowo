@@ -10,6 +10,8 @@ from typing import Any
 from app.deps import get_chat_model
 from app.main import app
 
+VENDOR_EMAIL = "ada@example.com"
+VENDOR_PASSWORD = "correct horse battery"
 APP_SECRET = "meta-app-secret"
 PAYSTACK_SECRET = "paystack-test-secret"
 VERIFY_TOKEN = "verify-me"
@@ -46,6 +48,17 @@ class ScriptedModel:
     @property
     def turns_left(self) -> int:
         return len(self._turns)
+
+
+def sign_in_vendor(session: Any, vendor: Any, email: str = VENDOR_EMAIL, password: str = VENDOR_PASSWORD) -> str:
+    """Give the vendor a login and start a session. Returns the bearer token a dashboard request needs."""
+    from app.services import auth
+
+    vendor.email = email
+    vendor.password_hash = auth.hash_password(password)
+    session.commit()
+    token, _ = auth.create_session(session, vendor)
+    return token
 
 
 def say(text: str) -> dict[str, Any]:
