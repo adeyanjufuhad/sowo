@@ -57,7 +57,9 @@ async function forward(request: NextRequest, { params }: Context) {
     }
   }
 
-  const response = new NextResponse(text, {
+  // 204 and friends must not carry a body, even an empty one.
+  const bodyless = upstream.status === 204 || upstream.status === 205 || upstream.status === 304;
+  const response = new NextResponse(bodyless ? null : text, {
     status: upstream.status,
     headers: { "content-type": upstream.headers.get("content-type") ?? "application/json" },
   });
@@ -67,4 +69,4 @@ async function forward(request: NextRequest, { params }: Context) {
   return response;
 }
 
-export { forward as GET, forward as PATCH, forward as POST };
+export { forward as DELETE, forward as GET, forward as PATCH, forward as POST };

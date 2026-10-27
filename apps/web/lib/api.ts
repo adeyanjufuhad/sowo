@@ -8,7 +8,10 @@ import {
   endpoints,
   type ApiError,
   type Endpoint,
+  type DeliveryZoneInput,
   type LoginRequest,
+  type ProductCreate,
+  type ProductUpdate,
   type RequestOf,
   type ResponseOf,
   type SimulatorMessageRequest,
@@ -61,6 +64,7 @@ async function call<E extends Endpoint<unknown, unknown>>(
     const payload = (await response.json().catch(() => null)) as ApiError | null;
     throw new ApiRequestError(response.status, payload?.error.message ?? `Request failed (${response.status})`);
   }
+  if (response.status === 204) return undefined as ResponseOf<E>;
   return (await response.json()) as ResponseOf<E>;
 }
 
@@ -72,6 +76,14 @@ const httpApi = {
   sendVendorReply: (id: string, body: string) => call(endpoints.sendVendorReply(id), { body }),
   listOrders: () => call(endpoints.listOrders()),
   listProducts: () => call(endpoints.listProducts()),
+  createProduct: (request: ProductCreate) => call(endpoints.createProduct(), request),
+  updateProduct: (id: string, request: ProductUpdate) => call(endpoints.updateProduct(id), request),
+  deleteProduct: (id: string) => call(endpoints.deleteProduct(id)),
+  listDeliveryZones: () => call(endpoints.listDeliveryZones()),
+  createDeliveryZone: (request: DeliveryZoneInput) => call(endpoints.createDeliveryZone(), request),
+  updateDeliveryZone: (id: string, request: Partial<DeliveryZoneInput>) =>
+    call(endpoints.updateDeliveryZone(id), request),
+  deleteDeliveryZone: (id: string) => call(endpoints.deleteDeliveryZone(id)),
   sendSimulatorMessage: (request: SimulatorMessageRequest) => call(endpoints.sendSimulatorMessage(), request),
   simulatePayment: (request: SimulatorPaymentRequest) => call(endpoints.simulatePayment(), request),
   sendSimulatorReceipt: (request: SimulatorReceiptRequest) => call(endpoints.sendSimulatorReceipt(), request),
@@ -120,6 +132,13 @@ const localApi: SowoApi = {
   me: needsBackend,
   getVendorSettings: needsBackend,
   updateVendorSettings: needsBackend,
+  createProduct: needsBackend,
+  updateProduct: needsBackend,
+  deleteProduct: needsBackend,
+  listDeliveryZones: needsBackend,
+  createDeliveryZone: needsBackend,
+  updateDeliveryZone: needsBackend,
+  deleteDeliveryZone: needsBackend,
 };
 
 export const api: SowoApi = USING_MOCK ? localApi : httpApi;

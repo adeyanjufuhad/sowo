@@ -5,7 +5,7 @@
 export const SESSION_COOKIE = "sowo_session";
 
 /** Only these parts of the API are reachable through the proxy. Webhooks, for one, are not. */
-const PROXIED = new Set(["auth", "conversations", "orders", "products", "simulator", "vendor"]);
+const PROXIED = new Set(["auth", "conversations", "delivery-zones", "orders", "products", "simulator", "vendor"]);
 
 /** Where the proxy sends requests: the API's address as seen from this server. */
 export function backendUrl(): string | null {
