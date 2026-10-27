@@ -31,6 +31,7 @@ def search_catalog(session: Session, query: str) -> dict[str, list[dict[str, int
     )
     statement = select(
         Product.id,
+        Product.sku,
         Product.name,
         Product.price_kobo,
         Product.stock,
@@ -40,10 +41,11 @@ def search_catalog(session: Session, query: str) -> dict[str, list[dict[str, int
         statement = statement.where(searchable.like(f"%{word}%"))
 
     results = []
-    for product_id, name, price_kobo, stock, held in session.execute(statement):
+    for product_id, sku, name, price_kobo, stock, held in session.execute(statement):
         results.append(
             {
                 "productId": product_id,
+                "sku": sku,
                 "name": name,
                 "priceKobo": price_kobo,
                 "stockOnHand": max(0, stock - held),

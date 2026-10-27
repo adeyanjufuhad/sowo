@@ -83,6 +83,16 @@ export interface OrderItem {
   unitPriceKobo: Kobo;
 }
 
+/** PAYSTACK: a checkout link, confirmed by Paystack. MANUAL: a bank transfer to the vendor, confirmed by the vendor. */
+export type PaymentMethod = "PAYSTACK" | "MANUAL";
+
+/** The vendor's own account, shown to the buyer for a bank-transfer order. */
+export interface BankDetails {
+  bankName: string;
+  accountName: string;
+  accountNumber: string;
+}
+
 export interface Order {
   id: string;
   customerName: string;
@@ -97,6 +107,10 @@ export interface Order {
   conversationId?: string;
   deliveryArea?: string;
   paymentReference?: string;
+  /** Defaults to PAYSTACK when absent. */
+  paymentMethod?: PaymentMethod;
+  /** Bank transfer only: when the buyer said they had paid. Payment stays PENDING until the vendor confirms. */
+  receiptReportedAt?: IsoDateString;
 }
 
 /* -------------------------------------------------------------------------- */
@@ -130,12 +144,15 @@ export interface SearchCatalogCall {
  * ACCEPT: offer is at or above the floor; agreedPriceKobo is set.
  * COUNTER: offer is below the floor; counterKobo is the server's next price.
  * HOLD: offer is below the floor and the server has no more room; counterKobo is the final price.
+ * REJECT: offer is unrealistically low; no price is returned.
+ * HANDOFF: repeated offers below the floor; the chat goes to the vendor, no price is returned.
  */
-export type OfferDecision = "ACCEPT" | "COUNTER" | "HOLD";
+export type OfferDecision = "ACCEPT" | "COUNTER" | "HOLD" | "REJECT" | "HANDOFF";
 
 export interface EvaluateOfferCall {
   tool: "evaluate_offer";
-  input: { productId: string; offerKobo: Kobo };
+  /** `sku` is optional: it is the readable form of productId, for display. */
+  input: { productId: string; offerKobo: Kobo; sku?: string };
   output: {
     decision: OfferDecision;
     agreedPriceKobo?: Kobo;
@@ -163,7 +180,7 @@ export interface Quote {
 export interface GetQuoteCall {
   tool: "get_quote";
   /** No prices in the input: the server applies the agreed price itself. */
-  input: { items: { productId: string; quantity: number }[]; deliveryArea: string };
+  input: { items: { productId: string; quantity: number; sku?: string }[]; deliveryArea: string };
   output: Quote;
 }
 
@@ -174,8 +191,12 @@ export interface RequestPaymentCall {
     orderId: string;
     reference: string;
     amountKobo: Kobo;
-    /** Paystack (test mode) checkout link. */
-    paymentUrl: string;
+    /** Paystack (test mode) checkout link. Absent for bank transfers. */
+    paymentUrl?: string;
+    /** Absent means PAYSTACK. */
+    method?: PaymentMethod;
+    /** Bank transfers: the vendor's account the buyer pays into. */
+    bank?: BankDetails;
   };
 }
 
@@ -245,6 +266,22 @@ export interface SimulatorPaymentResponse {
   messages: Message[];
 }
 
+export interface SimulatorReceiptRequest {
+  reference: string;
+}
+
+export interface SimulatorReceiptResponse {
+  order: Order;
+  /** The buyer's "I've sent it" message and Sowo's reply. */
+  messages: Message[];
+}
+
+export interface MarkPaidResponse {
+  order: Order;
+  /** The receipt sent to the buyer. Absent when the order was already paid. */
+  message?: Message;
+}
+
 export interface ApiError {
   error: {
     code: "BAD_REQUEST" | "NOT_FOUND" | "CONFLICT" | "INTERNAL";
@@ -300,6 +337,15 @@ export const endpoints = {
       "POST",
       "/simulator/payments",
     ),
+  /** Bank-transfer mode: the simulator buyer says they have sent the money. */
+  sendSimulatorReceipt: () =>
+    endpoint<SimulatorReceiptRequest, SimulatorReceiptResponse>(
+      "POST",
+      "/simulator/receipts",
+    ),
+  /** Bank-transfer mode: the vendor confirms the money reached their account. */
+  markOrderPaid: (id: string) =>
+    endpoint<void, MarkPaidResponse>("POST", `/orders/${enc(id)}/mark-paid`),
 } as const;
 
 export type RequestOf<E> = E extends Endpoint<infer Req, unknown> ? Req : never;

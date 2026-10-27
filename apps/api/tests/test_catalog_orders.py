@@ -152,6 +152,7 @@ def test_catalog_result_never_contains_floor_price(tmp_path: Path) -> None:
         assert result["results"] == [
             {
                 "productId": result["results"][0]["productId"],
+                "sku": "LOAF-BLK-43",
                 "name": "Black Leather Loafers, size 43",
                 "priceKobo": 4500000,
                 "stockOnHand": 1,

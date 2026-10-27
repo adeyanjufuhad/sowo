@@ -42,7 +42,12 @@ def _add_sqlite_columns_if_missing() -> None:
     additions = {
         "products": {"image_url": "VARCHAR(500) NOT NULL DEFAULT ''"},
         "conversations": {"customer_name": "VARCHAR(120) NOT NULL DEFAULT ''"},
-        "orders": {"delivery_area": "VARCHAR(100)", "created_at": "DATETIME"},
+        "orders": {
+            "delivery_area": "VARCHAR(100)",
+            "created_at": "DATETIME",
+            "payment_method": "VARCHAR(8) NOT NULL DEFAULT 'PAYSTACK'",
+            "receipt_reported_at": "DATETIME",
+        },
     }
     inspector = inspect(engine)
     with engine.begin() as connection:
