@@ -10,10 +10,13 @@ from typing import Any
 from app.deps import get_chat_model
 from app.main import app
 
+VENDOR_EMAIL = "ada@example.com"
+VENDOR_PASSWORD = "correct horse battery"
 APP_SECRET = "meta-app-secret"
 PAYSTACK_SECRET = "paystack-test-secret"
 VERIFY_TOKEN = "verify-me"
 VENDOR_PHONE = "2348099999999"
+WHATSAPP_NUMBER_ID = "1555000111"  # Ada's WhatsApp business number, as Meta's Cloud API names it
 BUYER_PHONE = "2348012345678"
 LOAFERS_FLOOR_KOBO = 3_876_500  # distinctive, so a leak is easy to spot in any text
 
@@ -46,6 +49,17 @@ class ScriptedModel:
     @property
     def turns_left(self) -> int:
         return len(self._turns)
+
+
+def sign_in_vendor(session: Any, vendor: Any, email: str = VENDOR_EMAIL, password: str = VENDOR_PASSWORD) -> str:
+    """Give the vendor a login and start a session. Returns the bearer token a dashboard request needs."""
+    from app.services import auth
+
+    vendor.email = email
+    vendor.password_hash = auth.hash_password(password)
+    session.commit()
+    token, _ = auth.create_session(session, vendor)
+    return token
 
 
 def say(text: str) -> dict[str, Any]:
@@ -82,7 +96,14 @@ def paystack_signed(payload: dict[str, Any], secret: str = PAYSTACK_SECRET) -> t
     return raw, {"X-Paystack-Signature": digest, "Content-Type": "application/json"}
 
 
-def whatsapp_payload(text: str = "Hello", *, message_id: str = "wamid.in1", phone: str = BUYER_PHONE, name: str = "Funke") -> dict[str, Any]:
+def whatsapp_payload(
+    text: str = "Hello",
+    *,
+    message_id: str = "wamid.in1",
+    phone: str = BUYER_PHONE,
+    name: str = "Funke",
+    phone_number_id: str = WHATSAPP_NUMBER_ID,
+) -> dict[str, Any]:
     return {
         "object": "whatsapp_business_account",
         "entry": [
@@ -93,7 +114,7 @@ def whatsapp_payload(text: str = "Hello", *, message_id: str = "wamid.in1", phon
                         "field": "messages",
                         "value": {
                             "messaging_product": "whatsapp",
-                            "metadata": {"phone_number_id": "1555000111"},
+                            "metadata": {"phone_number_id": phone_number_id},
                             "contacts": [{"profile": {"name": name}, "wa_id": phone}],
                             "messages": [
                                 {

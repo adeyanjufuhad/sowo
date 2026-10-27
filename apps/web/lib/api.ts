@@ -1,5 +1,5 @@
 // Typed client for the Sowo API.
-// With NEXT_PUBLIC_API_URL set, it calls the real backend (apps/api) over HTTP.
+// With NEXT_PUBLIC_API_URL set, it calls the real backend (apps/api) through this site's /api/proxy.
 // Without it, it runs the mock backend in the browser (lib/mock/local.ts), so the
 // demo works offline and on serverless hosting. The same mock is also served over
 // HTTP at /api/mock for curl and for comparing against the real backend.
@@ -8,11 +8,17 @@ import {
   endpoints,
   type ApiError,
   type Endpoint,
+  type DeliveryZoneInput,
+  type LoginRequest,
+  type ProductCreate,
+  type ProductUpdate,
   type RequestOf,
   type ResponseOf,
   type SimulatorMessageRequest,
   type SimulatorPaymentRequest,
+  type SignupRequest,
   type SimulatorReceiptRequest,
+  type VendorSettingsUpdate,
 } from "@sowo/shared";
 import { ApiRequestError } from "./api-error";
 import { resetLocalMock, runLocal } from "./mock/local";
@@ -30,10 +36,12 @@ import {
 
 export { ApiRequestError };
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL?.replace(/\/+$/, "") || "";
-
 /** True when no backend is configured and the in-browser mock answers instead. */
-export const USING_MOCK = !API_URL;
+export const USING_MOCK = !process.env.NEXT_PUBLIC_API_URL?.trim();
+
+// With a backend, the browser talks to this site's own /api/proxy, which adds the vendor's session cookie and
+// forwards to the API (see app/api/proxy). The API's address itself is only known to the server.
+const API_URL = USING_MOCK ? "" : "/api/proxy";
 
 async function call<E extends Endpoint<unknown, unknown>>(
   endpoint: E,
@@ -46,10 +54,17 @@ async function call<E extends Endpoint<unknown, unknown>>(
     cache: "no-store",
   });
 
+  if (response.status === 401 && !endpoint.path.startsWith("/auth/") && typeof window !== "undefined") {
+    // The session ended (or never existed): go and sign in, then come back here.
+    const here = window.location.pathname + window.location.search;
+    // A full navigation on purpose: it drops whatever the signed-out page was holding in memory.
+    window.location.assign(new URL(`/login?next=${encodeURIComponent(here)}`, window.location.origin));
+  }
   if (!response.ok) {
     const payload = (await response.json().catch(() => null)) as ApiError | null;
     throw new ApiRequestError(response.status, payload?.error.message ?? `Request failed (${response.status})`);
   }
+  if (response.status === 204) return undefined as ResponseOf<E>;
   return (await response.json()) as ResponseOf<E>;
 }
 
@@ -61,10 +76,24 @@ const httpApi = {
   sendVendorReply: (id: string, body: string) => call(endpoints.sendVendorReply(id), { body }),
   listOrders: () => call(endpoints.listOrders()),
   listProducts: () => call(endpoints.listProducts()),
+  createProduct: (request: ProductCreate) => call(endpoints.createProduct(), request),
+  updateProduct: (id: string, request: ProductUpdate) => call(endpoints.updateProduct(id), request),
+  deleteProduct: (id: string) => call(endpoints.deleteProduct(id)),
+  listDeliveryZones: () => call(endpoints.listDeliveryZones()),
+  createDeliveryZone: (request: DeliveryZoneInput) => call(endpoints.createDeliveryZone(), request),
+  updateDeliveryZone: (id: string, request: Partial<DeliveryZoneInput>) =>
+    call(endpoints.updateDeliveryZone(id), request),
+  deleteDeliveryZone: (id: string) => call(endpoints.deleteDeliveryZone(id)),
   sendSimulatorMessage: (request: SimulatorMessageRequest) => call(endpoints.sendSimulatorMessage(), request),
   simulatePayment: (request: SimulatorPaymentRequest) => call(endpoints.simulatePayment(), request),
   sendSimulatorReceipt: (request: SimulatorReceiptRequest) => call(endpoints.sendSimulatorReceipt(), request),
   markOrderPaid: (id: string) => call(endpoints.markOrderPaid(id)),
+  signup: (request: SignupRequest) => call(endpoints.signup(), request),
+  login: (request: LoginRequest) => call(endpoints.login(), request),
+  logout: () => call(endpoints.logout()),
+  me: () => call(endpoints.me()),
+  getVendorSettings: () => call(endpoints.getVendorSettings()),
+  updateVendorSettings: (request: VendorSettingsUpdate) => call(endpoints.updateVendorSettings(), request),
 };
 
 export type SowoApi = typeof httpApi;
@@ -97,6 +126,19 @@ const localApi: SowoApi = {
     runLocal((s, now) => settlePayment(s, request.reference, request.outcome, now), REPLY_LATENCY_MS),
   sendSimulatorReceipt: needsBackend,
   markOrderPaid: needsBackend,
+  signup: needsBackend,
+  login: needsBackend,
+  logout: needsBackend,
+  me: needsBackend,
+  getVendorSettings: needsBackend,
+  updateVendorSettings: needsBackend,
+  createProduct: needsBackend,
+  updateProduct: needsBackend,
+  deleteProduct: needsBackend,
+  listDeliveryZones: needsBackend,
+  createDeliveryZone: needsBackend,
+  updateDeliveryZone: needsBackend,
+  deleteDeliveryZone: needsBackend,
 };
 
 export const api: SowoApi = USING_MOCK ? localApi : httpApi;

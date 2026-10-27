@@ -1,5 +1,6 @@
 from sqlalchemy import select
 
+from app.config import require_development
 from app.db import SessionLocal, init_db
 from app.models import Conversation, Message, MessageRole, Order, OrderItem, OrderStatus, Product
 from app.seed import seed_data
@@ -7,9 +8,10 @@ from app.seed import seed_data
 
 def main() -> None:
     """Create idempotent dashboard-only sample conversations and an order."""
+    require_development("Seeding the demo conversations")
     init_db()
     with SessionLocal() as session:
-        seed_data(session)
+        vendor = seed_data(session)
         product = session.scalar(select(Product).where(Product.sku == "LOAF-BLK-43"))
         brown_product = session.scalar(select(Product).where(Product.sku == "LOAF-BRN-42"))
         assert product is not None
@@ -19,6 +21,7 @@ def main() -> None:
         )
         if conversation is None:
             conversation = Conversation(
+                vendor_id=vendor.id,
                 customer_phone="2348000000001",
                 customer_name="Funke Adeyemi",
                 is_simulator=True,
@@ -61,6 +64,7 @@ def main() -> None:
         )
         if second_conversation is None:
             second_conversation = Conversation(
+                vendor_id=vendor.id,
                 customer_phone="2348000000002",
                 customer_name="Ibrahim Musa",
             )

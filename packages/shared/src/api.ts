@@ -61,6 +61,43 @@ export interface Product {
   floorPriceKobo: Kobo;
   stockOnHand: number;
   imageUrl: string;
+  /** Only the real backend sends these; the offline demo's products don't have them. */
+  description?: string;
+  size?: string | null;
+  colour?: string | null;
+}
+
+/** A new product. Prices are whole kobo, and 0 < floorPriceKobo <= basePriceKobo. */
+export interface ProductCreate {
+  sku: string;
+  name: string;
+  description?: string;
+  size?: string | null;
+  colour?: string | null;
+  basePriceKobo: Kobo;
+  floorPriceKobo: Kobo;
+  stockOnHand?: number;
+  imageUrl?: string;
+}
+
+/** Send only what changes. */
+export type ProductUpdate = Partial<ProductCreate>;
+
+/** Archived means kept for the orders that mention the product, but no longer sold or shown. */
+export interface DeleteProductResponse {
+  deleted: boolean;
+  archived: boolean;
+}
+
+export interface DeliveryZone {
+  id: string;
+  area: string;
+  feeKobo: Kobo;
+}
+
+export interface DeliveryZoneInput {
+  area: string;
+  feeKobo: Kobo;
 }
 
 export const PAYMENT_STATUSES = ["PENDING", "PAID", "FAILED", "REFUNDED"] as const;
@@ -282,9 +319,66 @@ export interface MarkPaidResponse {
   message?: Message;
 }
 
+/* Accounts. The web app's server keeps the session token in an httpOnly cookie, so the browser sees only the vendor. */
+
+export interface AuthVendor {
+  id: string;
+  name: string;
+  email?: string;
+}
+
+export interface SignupRequest {
+  email: string;
+  password: string;
+  businessName: string;
+}
+
+export interface LoginRequest {
+  email: string;
+  password: string;
+}
+
+export interface SessionResponse {
+  vendor: AuthVendor;
+}
+
+/** How a shop's buyers pay: a Paystack link, or a transfer into the vendor's own bank account. */
+export type PaymentMode = "paystack" | "manual";
+
+/** The signed-in vendor's own setup. The API stores these per vendor, so many shops can share one deployment. */
+export interface VendorSettings {
+  businessName: string;
+  /** What buyers call the person behind the shop. Falls back to the business name. */
+  ownerName: string | null;
+  /** Meta's id for the vendor's WhatsApp business number. It is how a buyer's message finds this vendor. */
+  whatsappPhoneNumberId: string | null;
+  /** The vendor's own phone, for "pack this" and "needs you" alerts. */
+  alertPhone: string | null;
+  paymentMode: PaymentMode;
+  bankName: string | null;
+  bankAccountName: string | null;
+  /** Ten digits. */
+  bankAccountNumber: string | null;
+  /** Can the shop take an order with its chosen payment mode? */
+  paymentReady: boolean;
+  /** Can Sowo answer buyers who message this shop's number? */
+  whatsappConnected: boolean;
+}
+
+/** Send only what changes. null or "" clears an optional setting. */
+export interface VendorSettingsUpdate {
+  ownerName?: string | null;
+  whatsappPhoneNumberId?: string | null;
+  alertPhone?: string | null;
+  paymentMode?: PaymentMode;
+  bankName?: string | null;
+  bankAccountName?: string | null;
+  bankAccountNumber?: string | null;
+}
+
 export interface ApiError {
   error: {
-    code: "BAD_REQUEST" | "NOT_FOUND" | "CONFLICT" | "INTERNAL";
+    code: "BAD_REQUEST" | "UNAUTHORIZED" | "NOT_FOUND" | "CONFLICT" | "INTERNAL";
     message: string;
   };
 }
@@ -293,7 +387,7 @@ export interface ApiError {
 /* Endpoints                                                                  */
 /* -------------------------------------------------------------------------- */
 
-type Method = "GET" | "POST";
+type Method = "GET" | "POST" | "PATCH" | "DELETE";
 
 interface Endpoint<Req, Res> {
   method: Method;
@@ -326,6 +420,24 @@ export const endpoints = {
     ),
   listOrders: () => endpoint<void, ListOrdersResponse>("GET", "/orders"),
   listProducts: () => endpoint<void, ListProductsResponse>("GET", "/products"),
+  createProduct: () =>
+    endpoint<ProductCreate, { product: Product }>("POST", "/products"),
+  updateProduct: (id: string) =>
+    endpoint<ProductUpdate, { product: Product }>("PATCH", `/products/${enc(id)}`),
+  deleteProduct: (id: string) =>
+    endpoint<void, DeleteProductResponse>("DELETE", `/products/${enc(id)}`),
+  listDeliveryZones: () =>
+    endpoint<void, { zones: DeliveryZone[] }>("GET", "/delivery-zones"),
+  createDeliveryZone: () =>
+    endpoint<DeliveryZoneInput, { zone: DeliveryZone }>("POST", "/delivery-zones"),
+  updateDeliveryZone: (id: string) =>
+    endpoint<Partial<DeliveryZoneInput>, { zone: DeliveryZone }>(
+      "PATCH",
+      `/delivery-zones/${enc(id)}`,
+    ),
+  /** Responds 204 with no body. */
+  deleteDeliveryZone: (id: string) =>
+    endpoint<void, void>("DELETE", `/delivery-zones/${enc(id)}`),
   sendSimulatorMessage: () =>
     endpoint<SimulatorMessageRequest, SimulatorMessageResponse>(
       "POST",
@@ -337,6 +449,13 @@ export const endpoints = {
       "POST",
       "/simulator/payments",
     ),
+  signup: () => endpoint<SignupRequest, SessionResponse>("POST", "/auth/signup"),
+  login: () => endpoint<LoginRequest, SessionResponse>("POST", "/auth/login"),
+  logout: () => endpoint<void, { ok: boolean }>("POST", "/auth/logout"),
+  me: () => endpoint<void, SessionResponse>("GET", "/auth/me"),
+  getVendorSettings: () => endpoint<void, VendorSettings>("GET", "/vendor/settings"),
+  updateVendorSettings: () =>
+    endpoint<VendorSettingsUpdate, VendorSettings>("PATCH", "/vendor/settings"),
   /** Bank-transfer mode: the simulator buyer says they have sent the money. */
   sendSimulatorReceipt: () =>
     endpoint<SimulatorReceiptRequest, SimulatorReceiptResponse>(

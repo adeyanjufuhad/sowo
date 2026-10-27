@@ -2,7 +2,18 @@ import enum
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, Enum, ForeignKey, Integer, String, Text, func
+from sqlalchemy import (
+    JSON,
+    Boolean,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -51,15 +62,45 @@ class Vendor(Base):
     __tablename__ = "vendors"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     name: Mapped[str] = mapped_column(String(120), unique=True, nullable=False)
+    # Login. Both stay empty for a vendor created before accounts existed (or by the demo seed) until they are claimed.
+    email: Mapped[str | None] = mapped_column(String(254), unique=True)
+    password_hash: Mapped[str | None] = mapped_column(String(255))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=func.now())
+    # What buyers call the person behind the shop ("Ada"). Falls back to the business name when empty.
+    owner_name: Mapped[str | None] = mapped_column(String(80))
+    # The vendor's WhatsApp business number, as Meta's Cloud API names it. It is how an incoming message finds its
+    # vendor, and which number replies are sent from.
+    whatsapp_phone_number_id: Mapped[str | None] = mapped_column(String(32), unique=True)
+    # Where "pack this" and "needs you" alerts go (the vendor's own phone).
+    alert_phone: Mapped[str | None] = mapped_column(String(32))
+    # "paystack": a Paystack link, confirmed by Paystack's signed webhook. "manual": a bank transfer to the account
+    # below, confirmed by the vendor in the dashboard once the money shows up.
+    payment_mode: Mapped[str] = mapped_column(String(16), nullable=False, default="paystack", server_default="paystack")
+    bank_name: Mapped[str | None] = mapped_column(String(80))
+    bank_account_name: Mapped[str | None] = mapped_column(String(120))
+    bank_account_number: Mapped[str | None] = mapped_column(String(10))
     products: Mapped[list["Product"]] = relationship(back_populates="vendor")
     delivery_zones: Mapped[list["DeliveryZone"]] = relationship(back_populates="vendor")
 
 
-class Product(Base):
-    __tablename__ = "products"
+class VendorSession(Base):
+    """A signed-in dashboard session. Only a hash of the token is stored, so a database leak can't be replayed."""
+
+    __tablename__ = "vendor_sessions"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     vendor_id: Mapped[str] = mapped_column(ForeignKey("vendors.id"), nullable=False, index=True)
-    sku: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=func.now())
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_used_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=func.now())
+
+
+class Product(Base):
+    __tablename__ = "products"
+    __table_args__ = (UniqueConstraint("vendor_id", "sku", name="uq_products_vendor_id_sku"),)
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    vendor_id: Mapped[str] = mapped_column(ForeignKey("vendors.id"), nullable=False, index=True)
+    sku: Mapped[str] = mapped_column(String(64), nullable=False)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     size: Mapped[str | None] = mapped_column(String(32))
@@ -68,6 +109,9 @@ class Product(Base):
     floor_price_kobo: Mapped[int] = mapped_column(Integer, nullable=False)
     stock: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     image_url: Mapped[str] = mapped_column(String(500), nullable=False, default="")
+    # Set when the vendor removes a product that has already been ordered or haggled over: it stops being sold or
+    # shown, but the orders that mention it keep working.
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     vendor: Mapped[Vendor] = relationship(back_populates="products")
 
 
@@ -83,6 +127,7 @@ class DeliveryZone(Base):
 class Conversation(Base):
     __tablename__ = "conversations"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    vendor_id: Mapped[str] = mapped_column(ForeignKey("vendors.id"), nullable=False, index=True)
     customer_phone: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
     customer_name: Mapped[str] = mapped_column(String(120), nullable=False, default="")
     status: Mapped[ConversationStatus] = mapped_column(Enum(ConversationStatus), nullable=False, default=ConversationStatus.ACTIVE)

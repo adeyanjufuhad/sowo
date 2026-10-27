@@ -12,7 +12,7 @@ import sys
 import httpx
 from sqlalchemy import select
 
-from app.config import get_settings
+from app.config import get_settings, require_development
 from app.db import SessionLocal, init_db
 from app.models import Conversation, MessageRole, Order, OrderStatus
 from app.seed import seed_data
@@ -57,6 +57,7 @@ def pay_latest(session) -> None:
 
 
 def main() -> int:
+    require_development("The terminal chat (it seeds the demo shop)")
     problem = check_ollama()
     if problem:
         print(problem)
@@ -64,8 +65,10 @@ def main() -> int:
     settings = get_settings()
     init_db()
     with SessionLocal() as session:
-        seed_data(session)
-        conversation = Conversation(customer_phone="cli-buyer", customer_name="You", is_simulator=True)
+        vendor = seed_data(session)
+        conversation = Conversation(
+            vendor_id=vendor.id, customer_phone="cli-buyer", customer_name="You", is_simulator=True
+        )
         session.add(conversation)
         session.commit()
         print(f"Chatting with Sowo on {settings.ollama_model}. Type /pay to pay, /quit to leave.\n")

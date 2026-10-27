@@ -41,8 +41,8 @@ def make_session(tmp_path: Path) -> Session:
                 stock=1,
             ),
             DeliveryZone(vendor_id=vendor.id, area="Ikeja", fee_kobo=250000),
-            Conversation(customer_phone="2348012345678"),
-            Conversation(customer_phone="2348098765432"),
+            Conversation(vendor_id=vendor.id, customer_phone="2348012345678"),
+            Conversation(vendor_id=vendor.id, customer_phone="2348098765432"),
         ]
     )
     session.commit()
@@ -146,7 +146,8 @@ def test_amount_mismatch_is_rejected(tmp_path: Path) -> None:
 
 def test_catalog_result_never_contains_floor_price(tmp_path: Path) -> None:
     with make_session(tmp_path) as session:
-        result = search_catalog(session, "size 43 black loafers")
+        vendor_id = session.scalars(select(Vendor.id)).one()
+        result = search_catalog(session, vendor_id, "size 43 black loafers")
         encoded = json.dumps(result)
 
         assert result["results"] == [

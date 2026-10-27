@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from helpers import sign_in_vendor
 from sqlalchemy.orm import sessionmaker
 
 import app.db as database
@@ -43,8 +44,8 @@ def dashboard_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generat
             stock=3,
             image_url="",
         )
-        buyer = Conversation(customer_phone="2348012345678", customer_name="Funke", is_simulator=False)
-        simulator = Conversation(customer_phone="demo-buyer", customer_name="Demo buyer", is_simulator=True)
+        buyer = Conversation(vendor_id=vendor.id, customer_phone="2348012345678", customer_name="Funke", is_simulator=False)
+        simulator = Conversation(vendor_id=vendor.id, customer_phone="demo-buyer", customer_name="Demo buyer", is_simulator=True)
         session.add_all([product, buyer, simulator])
         session.flush()
         session.add_all(
@@ -77,8 +78,9 @@ def dashboard_client(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Generat
         session.add(OrderItem(order_id=order.id, product_id=product.id, quantity=1, unit_price_kobo=4500000))
         session.commit()
         identifiers = {"buyer": buyer.id, "simulator": simulator.id, "product": product.id}
+        token = sign_in_vendor(session, vendor)
 
-    with TestClient(app) as client:
+    with TestClient(app, headers={"Authorization": f"Bearer {token}"}) as client:
         yield client, identifiers
 
 
@@ -184,6 +186,9 @@ def test_list_products_includes_vendor_floor_price_only_here(dashboard_client: t
                 "floorPriceKobo": 4000000,
                 "stockOnHand": 3,
                 "imageUrl": "",
+                "description": "Leather loafers",
+                "size": "43",
+                "colour": "Black",
             }
         ]
     }

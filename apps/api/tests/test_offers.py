@@ -16,7 +16,7 @@ def test_offer_service_persists_and_counts_below_floor_offers(tmp_path: Path) ->
         session.add(vendor)
         session.flush()
         product = Product(vendor_id=vendor.id, sku="TEST-LOAFER", name="Test loafer", description="Test", size="43", colour="Black", price_kobo=4500000, floor_price_kobo=4000000, stock=1)
-        conversation = Conversation(customer_phone="2348012345678")
+        conversation = Conversation(vendor_id=vendor.id, customer_phone="2348012345678")
         session.add_all([product, conversation])
         session.commit()
 
@@ -36,7 +36,7 @@ def test_rejected_offer_is_persisted_and_counts_toward_handoff(tmp_path: Path) -
         session.add(vendor)
         session.flush()
         product = Product(vendor_id=vendor.id, sku="TEST-SLIDE", name="Test slide", description="Test", size="42", colour="Blue", price_kobo=2000000, floor_price_kobo=1600000, stock=1)
-        conversation = Conversation(customer_phone="2348098765432")
+        conversation = Conversation(vendor_id=vendor.id, customer_phone="2348098765432")
         session.add_all([product, conversation])
         session.commit()
 

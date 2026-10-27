@@ -1,7 +1,8 @@
 """WhatsApp Cloud API: check Meta's signature, read inbound messages, send replies.
 
 Meta delivers every buyer message to POST /webhooks/whatsapp (app/routes_webhooks.py). We answer by calling
-the Graph API's /messages endpoint with the access token for our business phone number.
+the Graph API's /messages endpoint, from the vendor's own business number (a message that came in on one
+vendor's number is always answered from that number).
 """
 
 import hashlib
@@ -25,6 +26,7 @@ _transport_override: httpx.BaseTransport | None = None
 @dataclass(frozen=True)
 class InboundMessage:
     id: str
+    phone_number_id: str  # the vendor's business number that received it
     phone: str
     name: str
     kind: str  # "text", "image", "audio", ...
@@ -47,6 +49,8 @@ def parse_inbound(payload: dict[str, Any]) -> list[InboundMessage]:
             value = change.get("value") if isinstance(change, dict) else None
             if not isinstance(value, dict):
                 continue
+            metadata = value.get("metadata")
+            phone_number_id = str(metadata.get("phone_number_id") or "") if isinstance(metadata, dict) else ""
             names = {
                 contact.get("wa_id"): (contact.get("profile") or {}).get("name", "")
                 for contact in value.get("contacts") or []
@@ -60,6 +64,7 @@ def parse_inbound(payload: dict[str, Any]) -> list[InboundMessage]:
                 messages.append(
                     InboundMessage(
                         id=str(raw["id"]),
+                        phone_number_id=phone_number_id,
                         phone=str(raw["from"]),
                         name=str(names.get(raw["from"]) or ""),
                         kind=kind,
@@ -69,18 +74,18 @@ def parse_inbound(payload: dict[str, Any]) -> list[InboundMessage]:
     return messages
 
 
-def is_configured() -> bool:
-    settings = get_settings()
-    return bool(settings.whatsapp_access_token and settings.whatsapp_phone_number_id)
+def is_configured(phone_number_id: str | None) -> bool:
+    """Can we send from this number? It needs the platform's access token and a number to send from."""
+    return bool(get_settings().whatsapp_access_token and phone_number_id)
 
 
 def _mask(phone: str) -> str:
     return f"…{phone[-4:]}" if len(phone) > 4 else "…"
 
 
-def _post(path_suffix: str, payload: dict[str, Any]) -> bool:
+def _post(phone_number_id: str, path_suffix: str, payload: dict[str, Any]) -> bool:
     settings = get_settings()
-    url = f"https://graph.facebook.com/{settings.whatsapp_graph_version}/{settings.whatsapp_phone_number_id}/{path_suffix}"
+    url = f"https://graph.facebook.com/{settings.whatsapp_graph_version}/{phone_number_id}/{path_suffix}"
     try:
         with httpx.Client(timeout=15.0, transport=_transport_override) as client:
             response = client.post(
@@ -93,12 +98,14 @@ def _post(path_suffix: str, payload: dict[str, Any]) -> bool:
     return True
 
 
-def send_whatsapp_text(phone: str, text: str) -> bool:
-    """Send a text message. Returns False (and logs) instead of raising, so a Meta outage never breaks us."""
-    if not is_configured():
-        logger.info("WhatsApp not configured; not sending to %s", _mask(phone))
+def send_whatsapp_text(phone_number_id: str | None, phone: str, text: str) -> bool:
+    """Send a text message from a vendor's number. Returns False (and logs) instead of raising, so a Meta outage
+    never breaks us."""
+    if not phone_number_id or not is_configured(phone_number_id):
+        logger.info("WhatsApp not configured for this vendor; not sending to %s", _mask(phone))
         return False
     return _post(
+        phone_number_id,
         "messages",
         {
             "messaging_product": "whatsapp",
@@ -109,8 +116,10 @@ def send_whatsapp_text(phone: str, text: str) -> bool:
     )
 
 
-def mark_read(message_id: str) -> bool:
+def mark_read(phone_number_id: str | None, message_id: str) -> bool:
     """Show the buyer the blue ticks while Sowo is thinking. Best-effort."""
-    if not is_configured():
+    if not phone_number_id or not is_configured(phone_number_id):
         return False
-    return _post("messages", {"messaging_product": "whatsapp", "status": "read", "message_id": message_id})
+    return _post(
+        phone_number_id, "messages", {"messaging_product": "whatsapp", "status": "read", "message_id": message_id}
+    )

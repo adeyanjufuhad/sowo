@@ -1,6 +1,7 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.config import require_development
 from app.db import SessionLocal, init_db
 from app.models import DeliveryZone, Product, Vendor
 
@@ -27,11 +28,11 @@ ZONES = [("Ikeja", 250000), ("Yaba", 200000), ("Lekki", 350000), ("Surulere", 22
 def seed_data(session: Session) -> Vendor:
     vendor = session.scalar(select(Vendor).where(Vendor.name == "Ada's Footwear"))
     if vendor is None:
-        vendor = Vendor(name="Ada's Footwear")
+        vendor = Vendor(name="Ada's Footwear", owner_name="Ada")
         session.add(vendor)
         session.flush()
     for sku, name, description, size, colour, price, floor, stock in PRODUCTS:
-        if session.scalar(select(Product).where(Product.sku == sku)) is None:
+        if session.scalar(select(Product).where(Product.vendor_id == vendor.id, Product.sku == sku)) is None:
             session.add(Product(vendor_id=vendor.id, sku=sku, name=name, description=description, size=size, colour=colour, price_kobo=price, floor_price_kobo=floor, stock=stock))
     for area, fee in ZONES:
         existing = session.scalar(select(DeliveryZone).where(DeliveryZone.vendor_id == vendor.id, DeliveryZone.area == area))
@@ -42,6 +43,7 @@ def seed_data(session: Session) -> Vendor:
 
 
 def main() -> None:
+    require_development("Seeding the demo shop")
     init_db()
     with SessionLocal() as session:
         seed_data(session)

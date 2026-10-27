@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.models import (
+    Conversation,
     DeliveryZone,
     Offer,
     OfferDecision,
@@ -56,12 +57,26 @@ def _quote(session: Session, conversation_id: str, items: list[dict[str, Any]], 
     normalised = _normalise_items(items)
     if isinstance(normalised, dict):
         return normalised
-    zone = session.scalar(select(DeliveryZone).where(func.lower(DeliveryZone.area) == delivery_area.casefold()))
+    # A chat only ever sees its own vendor's delivery zones and products, whatever ids the caller passes.
+    vendor_id = session.scalar(select(Conversation.vendor_id).where(Conversation.id == conversation_id))
+    if vendor_id is None:
+        return _error("NOT_FOUND", "Conversation not found")
+    zone = session.scalar(
+        select(DeliveryZone).where(
+            DeliveryZone.vendor_id == vendor_id, func.lower(DeliveryZone.area) == delivery_area.casefold()
+        )
+    )
     if zone is None:
         return _error("UNKNOWN_DELIVERY_AREA", f"Delivery is not available in {delivery_area}")
 
     product_ids = [product_id for product_id, _ in normalised]
-    products = {product.id: product for product in session.scalars(select(Product).where(Product.id.in_(product_ids)))}
+    products = {
+        product.id: product
+        for product in session.scalars(select(Product).where(
+                Product.id.in_(product_ids), Product.vendor_id == vendor_id, Product.archived_at.is_(None)
+            )
+        )
+    }
     if len(products) != len(product_ids):
         return _error("NOT_FOUND", "One or more products could not be found")
 
