@@ -7,12 +7,13 @@ from sqlalchemy.orm import Session
 from app.db import get_db
 from app.models import Vendor
 from app.services import auth
-from app.services.ollama import ChatModel, get_ollama_client
+from app.services.model import get_chat_model as configured_chat_model
+from app.services.ollama import ChatModel
 
 
 def get_chat_model() -> ChatModel:
     """The model behind the agent. Tests replace this with a scripted stand-in."""
-    return get_ollama_client()
+    return configured_chat_model()
 
 
 ChatModelDependency = Annotated[ChatModel, Depends(get_chat_model)]

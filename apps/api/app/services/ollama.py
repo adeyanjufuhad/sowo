@@ -15,8 +15,11 @@ import httpx
 from app.config import get_settings
 
 
-class OllamaError(RuntimeError):
-    """Ollama was unreachable, timed out, or answered with something we can't use."""
+class ModelError(RuntimeError):
+    """The model (Ollama or a hosted endpoint) was unreachable, timed out, or answered with something we can't use."""
+
+
+OllamaError = ModelError  # the name the agent, the flow and the tests grew up with
 
 
 class ChatModel(Protocol):
