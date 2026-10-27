@@ -17,8 +17,8 @@ from app.db import SessionLocal, init_db
 from app.models import Conversation, MessageRole, Order, OrderStatus
 from app.seed import seed_data
 from app.services import flow
+from app.services.model import get_chat_model
 from app.services.money import format_naira
-from app.services.ollama import get_ollama_client
 from app.services.orders import mark_order_paid
 
 DIM, RESET = "\033[2m", "\033[0m"
@@ -58,11 +58,11 @@ def pay_latest(session) -> None:
 
 def main() -> int:
     require_development("The terminal chat (it seeds the demo shop)")
-    problem = check_ollama()
+    settings = get_settings()
+    problem = check_ollama() if settings.model_provider == "ollama" else None
     if problem:
         print(problem)
         return 1
-    settings = get_settings()
     init_db()
     with SessionLocal() as session:
         vendor = seed_data(session)
@@ -71,8 +71,9 @@ def main() -> int:
         )
         session.add(conversation)
         session.commit()
-        print(f"Chatting with Sowo on {settings.ollama_model}. Type /pay to pay, /quit to leave.\n")
-        model = get_ollama_client()
+        name = settings.llm_model if settings.model_provider == "openai" else settings.ollama_model
+        print(f"Chatting with Sowo on {name}. Type /pay to pay, /quit to leave.\n")
+        model = get_chat_model()
         while True:
             try:
                 text = input("You: ").strip()

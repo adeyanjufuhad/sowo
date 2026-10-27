@@ -1,7 +1,7 @@
 from functools import lru_cache
-from typing import Annotated, Literal
+from typing import Annotated, Literal, Self
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
@@ -17,8 +17,16 @@ class Settings(BaseSettings):
     # Neon (and other hosts with a connection pooler): the app uses the pooled DATABASE_URL, but migrations should
     # not run through PgBouncer, so give them the direct (unpooled) URL here. Empty means "use DATABASE_URL".
     database_url_direct: str = ""
+    # Where Qwen3 runs. "ollama" is a local Ollama; "openai" is any hosted OpenAI-compatible endpoint (Groq,
+    # OpenRouter, Cloudflare Workers AI, a vLLM server...), set up with the LLM_* values below.
+    model_provider: Literal["ollama", "openai"] = "ollama"
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "qwen3:8b"
+    llm_base_url: str = ""
+    llm_api_key: str = ""
+    llm_model: str = ""
+    # Sent as reasoning_effort when set (Groq takes "none" for Qwen3). Empty sends nothing.
+    llm_reasoning_effort: str = ""
     whatsapp_verify_token: str = ""
     whatsapp_app_secret: str = ""
     # One token for the platform's Meta app. Which number a message came in on, and so which vendor it belongs
@@ -79,6 +87,12 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             return [origin.strip() for origin in value.split(",") if origin.strip()]
         return value
+
+    @model_validator(mode="after")
+    def hosted_model_is_complete(self) -> Self:
+        if self.model_provider == "openai" and not (self.llm_base_url and self.llm_model):
+            raise ValueError("MODEL_PROVIDER=openai needs LLM_BASE_URL and LLM_MODEL (and usually LLM_API_KEY)")
+        return self
 
 
 @lru_cache
