@@ -1,0 +1,37 @@
+name: Keep the demo API awake
+
+# Render's free web service sleeps after 15 minutes without a request, and the next visitor waits about a minute for
+# it to wake. That wait is most of what "signing in is slow" feels like. This asks /health, which never touches the
+# database (so Neon can still sleep), every five minutes. A pinged service runs all month inside the 750 free hours.
+#
+# Scheduled workflows run on the default branch only, and GitHub can delay a run by a few minutes, so also set a free
+# uptime monitor as the primary keep-awake if you can (docs/DEPLOY-RENDER.md, step 4).
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  ping:
+    name: GET /health
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Wake the API if it is asleep
+        env:
+          API_BASE_URL: https://sowo-api.onrender.com
+        run: |
+          # A cold start can outlast a single request, so the first attempt may time out while it wakes and the next
+          # one lands in a few hundred milliseconds.
+          for attempt in 1 2 3; do
+            if curl --fail --silent --show-error --max-time 90 "$API_BASE_URL/health"; then
+              exit 0
+            fi
+            echo "Attempt $attempt did not reach the API; retrying." >&2
+            sleep 10
+          done
+          echo "The demo API is not answering. Open the Render dashboard and check the service." >&2
+          exit 1

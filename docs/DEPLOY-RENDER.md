@@ -93,6 +93,16 @@ Render's free service sleeps after 15 minutes. A free uptime monitor (for exampl
 fits inside the 750 free hours. `/health` never touches the database, so Neon can still sleep. Do not point it at
 `/ready`. Skip this step if you'd rather accept a one-minute first load.
 
+This repo also ships [`.github/workflows/keep-warm.yml`](../.github/workflows/keep-warm.yml), which does the same
+from GitHub Actions every five minutes and needs no extra account. Treat it as the backup, not the guarantee:
+GitHub may delay a scheduled run, so use an uptime monitor as well when the API must be awake at a known time,
+such as a demo.
+
+Measured on the demo deployment (2026-10-29): a sleeping service took 12 s to answer `/health`, a warm one
+0.6–1.0 s. Signing in adds about 1.4 s of Argon2 work on top, because the free instance has a tenth of a CPU;
+password hashing is deliberately expensive and a cache cannot shorten it. Waking the service removes the large
+wait, which is what makes the first sign-in after an idle hour feel slow.
+
 ## 5. Check it
 
 - `/ready` says ready.
