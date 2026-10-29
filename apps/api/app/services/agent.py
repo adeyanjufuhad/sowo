@@ -633,12 +633,37 @@ def _has_paid_order(session: Session, conversation: Conversation) -> bool:
     )
 
 
-def _problems(reply: str, allowed: set[int], paid: bool) -> list[str]:
+def _settled_in_words(
+    session: Session, conversation: Conversation, reply: str, buyer_text: str, traces: list[dict[str, Any]]
+) -> list[int]:
+    """Prices the buyer offered that the reply repeats as settled, with no evaluate_offer behind them.
+
+    Qwen has answered "₦41,000 is the last price I can do" without calling the tool. The quote that follows is the
+    catalogue price, so the buyer is told one number and charged another. A price the server has already agreed to
+    is free to repeat.
+    """
+    if any(trace["tool"] == "evaluate_offer" for trace in traces):
+        return []
+    agreed = set(
+        session.scalars(
+            select(Offer.amount_kobo).where(
+                Offer.conversation_id == conversation.id, Offer.decision == OfferDecision.ACCEPT
+            )
+        )
+    )
+    offered = {amount for amount in guard.amounts_in(buyer_text) if amount >= 100_000} - agreed
+    return [amount for amount in guard.amounts_in(reply) if amount in offered]
+
+
+def _problems(reply: str, allowed: set[int], paid: bool, settled: list[int]) -> list[str]:
     problems = []
     unbacked = guard.find_unbacked_amounts(reply, allowed)
     if unbacked:
         shown = ", ".join(format_naira(amount) for amount in unbacked)
         problems.append(f"it mentions {shown}, which no tool returned")
+    if settled:
+        shown = ", ".join(format_naira(amount) for amount in settled)
+        problems.append(f"it treats {shown} as agreed, but evaluate_offer has not decided that price")
     if not paid and guard.claims_payment_received(reply):
         problems.append("it says a payment arrived, but none has")
     return problems
@@ -691,12 +716,26 @@ def run_agent(session: Session, conversation: Conversation, model: ChatModel, se
     buyer_text = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")
     traces: list[dict[str, Any]] = []
     text: str | None = None
+    nudged = False
 
     for _ in range(settings.agent_max_tool_rounds):
         reply = model.chat(messages, tools)
         calls = parse_tool_calls(reply)
         if not calls:
             text = strip_thinking(str(reply.get("content") or ""))
+            # One nudge if it settled a price in words: the tool is still available in the loop, not afterwards.
+            if not nudged and _settled_in_words(session, conversation, text, buyer_text, traces):
+                nudged = True
+                messages.append({"role": "assistant", "content": text})
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": "(system) The buyer named a price and you answered without deciding it. Call "
+                        "evaluate_offer with the sku and their offer in whole naira, then say only what it returns.",
+                    }
+                )
+                text = None
+                continue
             break
         messages.append(
             {
@@ -719,7 +758,9 @@ def run_agent(session: Session, conversation: Conversation, model: ChatModel, se
 
     allowed = _allowed_amounts(session, conversation, traces)
     paid = _has_paid_order(session, conversation)
-    problems = _problems(text, allowed, paid) if text else []
+    # Once nudged, a model that still answers in prose keeps its words: the fallback would say less than it does.
+    settled = _settled_in_words(session, conversation, text, buyer_text, traces) if text and not nudged else []
+    problems = _problems(text, allowed, paid, settled) if text else []
     used_fallback = False
     if problems:
         logger.warning("Model reply rejected: %s", "; ".join(problems))
@@ -732,7 +773,8 @@ def run_agent(session: Session, conversation: Conversation, model: ChatModel, se
             }
         )
         text = strip_thinking(str(model.chat(messages, None).get("content") or ""))
-        problems = _problems(text, allowed, paid) if text else []
+        settled = _settled_in_words(session, conversation, text, buyer_text, traces) if text and not nudged else []
+        problems = _problems(text, allowed, paid, settled) if text else []
     if not text or problems:
         text, used_fallback = fallback_reply(traces, buyer_text, toolbox.owner), True
 

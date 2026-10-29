@@ -106,6 +106,35 @@ def test_if_the_model_keeps_inventing_prices_the_server_speaks_for_it(env: Env) 
     assert reply is not None and reply.text == "The best I can do is ₦43,000."
 
 
+def test_a_price_settled_in_words_is_sent_back_through_evaluate_offer(env: Env) -> None:
+    """Live, Qwen answered '₦41,000 is the last price' with no tool call, then quoted ₦43,000 a turn later."""
+    chat = new_chat(env)
+    model = ScriptedModel(
+        say("₦41,000 is the last price I can do for you. Where do you want delivery?"),
+        call("evaluate_offer", sku="LOAF-BLK-43", offer_naira=41000),
+        say("Deal at ₦41,000! Where should we deliver it?"),
+    )
+    reply = say_to_sowo(env, chat, "Make it 41k", model)
+
+    assert reply is not None and reply.text == "Deal at ₦41,000! Where should we deliver it?"
+    assert [c["tool"] for c in reply.tool_calls or []] == ["evaluate_offer"]
+    nudge = model.requests[1]["messages"][-1]["content"]
+    assert "evaluate_offer" in nudge
+
+
+def test_after_one_nudge_the_model_keeps_its_own_words(env: Env) -> None:
+    """A second prose answer stands, so the buyer gets a sentence about their price, not 'give me a moment'."""
+    chat = new_chat(env)
+    model = ScriptedModel(
+        say("₦41,000 is the last price I can do for you."),
+        say("₦41,000 is my final price, sorry."),
+    )
+    reply = say_to_sowo(env, chat, "Make it 41k", model)
+
+    assert reply is not None and reply.text == "₦41,000 is my final price, sorry."
+    assert model.turns_left == 0
+
+
 def test_a_buyer_cannot_talk_the_model_into_a_discount(env: Env) -> None:
     """Even if the model 'agrees', the order is priced from the server's recorded decision."""
     chat = new_chat(env)
