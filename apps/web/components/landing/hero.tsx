@@ -1,10 +1,9 @@
-import { ArrowRight, ArrowUpRight } from "lucide-react";
+import { ArrowRight, Store } from "lucide-react";
 import { ButtonLink } from "@/components/ui/button";
-import { GITHUB_URL } from "@/lib/site";
 import { cn } from "@/lib/utils";
 import { Clay, type ClayName } from "./clay";
 
-const HEADLINE = "Sowo dey sell while you sleep.";
+const HEADLINE = "Ṣòwò dey sell while you sleep.";
 
 /** Clay objects floating around the mascot. Positions are % of the stage. */
 const FLOATERS: {
@@ -67,22 +66,20 @@ export function Hero() {
             ))}
           </h1>
           <p className="mx-auto mt-6 max-w-[56ch] text-base leading-relaxed text-ink-soft text-pretty sm:text-lg">
-            An AI sales assistant for Nigerian vendors on WhatsApp. It answers buyers in seconds, haggles down to the
-            floor price you set, sends a Paystack link and tells you when to pack.
+            An AI sales assistant for vendors who sell on WhatsApp. Ṣòwò answers buyers in seconds, haggles down to the
+            floor price you set, follows the order through payment and tells you what to pack.
           </p>
           <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <ButtonLink href="/try" size="lg" icon={<ArrowRight className="size-4" strokeWidth={2} />}>
-              Try the live demo
+            <ButtonLink href="/signup" size="lg" icon={<ArrowRight className="size-4" strokeWidth={2} />}>
+              Start selling
             </ButtonLink>
             <ButtonLink
-              href={GITHUB_URL}
-              target="_blank"
-              rel="noreferrer"
+              href="/try"
               variant="secondary"
               size="lg"
-              icon={<ArrowUpRight className="size-4" strokeWidth={2} />}
+              icon={<Store className="size-4" strokeWidth={1.75} />}
             >
-              View on GitHub
+              Visit a demo shop
             </ButtonLink>
           </div>
         </div>

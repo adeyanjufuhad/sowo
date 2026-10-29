@@ -2,17 +2,18 @@ import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
-const geist = Geist({ variable: "--font-geist", subsets: ["latin"] });
-const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
-const bricolage = Bricolage_Grotesque({ variable: "--font-bricolage", subsets: ["latin"] });
+// latin-ext carries the Yoruba letters (ṣ, ọ) in the brand name.
+const geist = Geist({ variable: "--font-geist", subsets: ["latin", "latin-ext"] });
+const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin", "latin-ext"] });
+const bricolage = Bricolage_Grotesque({ variable: "--font-bricolage", subsets: ["latin", "latin-ext"] });
 
 export const metadata: Metadata = {
   title: {
-    default: "Sowo: dey sell while you sleep",
-    template: "%s · Sowo",
+    default: "Ṣòwò: dey sell while you sleep",
+    template: "%s · Ṣòwò",
   },
   description:
-    "An AI sales assistant for Nigerian vendors on WhatsApp. Sowo answers buyers instantly, haggles down to your floor price, sends a Paystack link and tells you when to pack. Built on the open-weight Qwen3 model.",
+    "An AI sales assistant for vendors who sell on WhatsApp. Ṣòwò answers buyers in seconds, haggles down to the floor price you set, takes payment and tells you what to pack.",
 };
 
 export const viewport: Viewport = {

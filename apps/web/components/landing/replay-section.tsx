@@ -17,7 +17,7 @@ export function ReplaySection({ messages }: { messages: Message[] }) {
           </h2>
           <p className="mt-6 max-w-[48ch] text-base leading-relaxed text-ink-soft sm:text-lg">
             Kelechi wants black leather loafers in size 43. He offers ₦35,000, Sowo counters, they settle on ₦41,000,
-            and Paystack confirms ₦43,500 with delivery to Ikeja.
+            and the ₦43,500 payment clears with delivery to Ikeja.
           </p>
 
           <dl className="mt-10 grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">

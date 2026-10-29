@@ -1,14 +1,12 @@
 import Link from "next/link";
-import { ArrowUpRight } from "lucide-react";
 import { ButtonLink } from "@/components/ui/button";
-import { GITHUB_URL } from "@/lib/site";
 import { Logo } from "./logo";
 
 const LINKS = [
   { href: "#how-it-works", label: "How it works" },
   { href: "#replay", label: "See a sale" },
   { href: "#features", label: "Features" },
-  { href: "#open", label: "Open source" },
+  { href: "#trust", label: "Why Sowo" },
 ];
 
 export function SiteHeader() {
@@ -36,16 +34,14 @@ export function SiteHeader() {
           ))}
         </nav>
         <div className="flex items-center gap-2">
-          <a
-            href={GITHUB_URL}
-            target="_blank"
-            rel="noreferrer"
-            className="hidden h-9 items-center gap-1 rounded-full px-3 text-sm text-ink-soft transition-colors hover:bg-paper-deep hover:text-ink sm:inline-flex"
+          <Link
+            href="/login"
+            className="hidden h-9 items-center rounded-full px-3 text-sm text-ink-soft transition-colors hover:bg-paper-deep hover:text-ink sm:inline-flex"
           >
-            GitHub <ArrowUpRight aria-hidden className="size-3.5" strokeWidth={1.75} />
-          </a>
-          <ButtonLink href="/try" size="sm">
-            Try the demo
+            Log in
+          </Link>
+          <ButtonLink href="/signup" size="sm">
+            Start selling
           </ButtonLink>
         </div>
       </div>
