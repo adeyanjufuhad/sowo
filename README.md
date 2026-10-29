@@ -66,6 +66,7 @@ Today's scope is deliberately narrow: one shop per account, one item per order, 
 ## Demo
 
 - **Live demo:** <https://web-one-mu-94.vercel.app> — `/try` runs against the real API and a real Qwen3, and sells the shop named by `SIMULATOR_VENDOR_NAME` on that deployment
+- **Demo dashboard login:** `demo@sowo.example` / `Sowo-Demo-2026` — sign in at `/login` (or open `/dashboard`) to see the vendor side of the same shop `/try` sells. Everything in it is demo data.
 - **Demo video:** _add the video link before submission_
 
 | Buyer simulator, mid-haggle | Vendor dashboard |
