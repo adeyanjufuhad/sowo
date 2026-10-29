@@ -20,7 +20,7 @@ MAX_RETRY_WAIT_SECONDS = 20.0
 MAX_RETRIES = 2
 
 
-_XML_FUNCTION = re.compile(r"<function[=/]\s*([A-Za-z_][\w.-]*)\s*>(.*?)</function>", re.DOTALL)
+_XML_FUNCTION = re.compile(r"<function[=/]\s*(.*?)\s*>(.*?)</function>", re.DOTALL)
 _XML_PARAMETER = re.compile(r"<parameter[=/]\s*([A-Za-z_][\w.-]*)\s*>(.*?)</parameter>", re.DOTALL)
 
 
@@ -34,7 +34,38 @@ def _typed(value: str) -> Any:
     return value
 
 
-def calls_from_failed_generation(text: str) -> list[dict[str, Any]]:
+def tool_names(tools: list[dict[str, Any]] | None) -> tuple[str, ...]:
+    """The names the host was offered, for reading back a call whose name the model wrote badly."""
+    names = []
+    for tool in tools or []:
+        name = tool.get("function", {}).get("name") if isinstance(tool, dict) else None
+        if isinstance(name, str):
+            names.append(name)
+    return tuple(names)
+
+
+def _squash(name: str) -> str:
+    """A tool name with the slop taken out: Qwen has written 'evaluate$$$$$offer' and 'evaluate Offering'."""
+    return "".join(ch for ch in name.lower() if ch.isalnum())
+
+
+def _resolve(name: str, known: tuple[str, ...] | list[str]) -> str:
+    """The real tool the model meant, or the name it wrote when nothing fits.
+
+    The arguments come through intact, so guessing the name is enough to run the right tool. The server still
+    checks everything the call asks for, and a name that matches nothing is passed on for the agent to reject.
+    """
+    squashed = _squash(name)
+    if not squashed:
+        return name
+    matches = [tool for tool in known if _squash(tool) == squashed]
+    if not matches:
+        # "evaluate" for evaluate_offer: one tool is the only one either side of what the model wrote.
+        matches = [tool for tool in known if _squash(tool).startswith(squashed) or squashed.startswith(_squash(tool))]
+    return matches[0] if len(matches) == 1 else name
+
+
+def calls_from_failed_generation(text: str, known: tuple[str, ...] = ()) -> list[dict[str, Any]]:
     """Tool calls written in Qwen's XML layout, which some hosts reject before we see them.
 
     Groq answers 400 tool_use_failed and returns the model's raw text as `failed_generation` when Qwen writes
@@ -44,7 +75,7 @@ def calls_from_failed_generation(text: str) -> list[dict[str, Any]]:
     calls = []
     for name, body in _XML_FUNCTION.findall(text):
         arguments = {key: _typed(value) for key, value in _XML_PARAMETER.findall(body)}
-        calls.append({"function": {"name": name, "arguments": arguments}})
+        calls.append({"function": {"name": _resolve(name, known), "arguments": arguments}})
     return calls
 
 
@@ -148,7 +179,8 @@ class OpenAICompatibleClient:
             response = self._post(payload)
             data = response.json()
         except httpx.HTTPStatusError as exc:
-            recovered = self._recover_tool_call(exc.response)
+            known = tool_names(tools)
+            recovered = self._recover_tool_call(exc.response, known)
             if recovered is not None:
                 return recovered
             # The host says why in the body (a bad tool call, a retired model, a limit); the status line doesn't.
@@ -162,7 +194,9 @@ class OpenAICompatibleClient:
         return from_openai_message(message)
 
     @staticmethod
-    def _recover_tool_call(response: httpx.Response) -> dict[str, Any] | None:
+    def _recover_tool_call(
+        response: httpx.Response, known: tuple[str, ...] = ()
+    ) -> dict[str, Any] | None:
         if response.status_code != 400:
             return None
         try:
@@ -170,7 +204,7 @@ class OpenAICompatibleClient:
             generated = error["failed_generation"] if error.get("code") == "tool_use_failed" else ""
         except (ValueError, KeyError, TypeError):
             return None
-        calls = calls_from_failed_generation(generated) if isinstance(generated, str) else []
+        calls = calls_from_failed_generation(generated, known) if isinstance(generated, str) else []
         return {"role": "assistant", "content": "", "tool_calls": calls} if calls else None
 
     def _post(self, payload: dict[str, Any]) -> httpx.Response:
