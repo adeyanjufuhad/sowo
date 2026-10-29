@@ -21,6 +21,22 @@ PRODUCTS = [
     ("KIDS-PNK-31", "Pink School Shoes, size 31", "Sturdy school shoes with secure buckle strap.", "31", "Pink", 1600000, 1400000, 11),
     ("KIDS-BLK-33", "Black School Shoes, size 33", "Polishable school shoes with non-slip sole.", "33", "Black", 1700000, 1450000, 10),
     ("TRAIN-GRY-42", "Grey Running Trainers, size 42", "Lightweight trainers for walks and gym sessions.", "42", "Grey", 4200000, 3700000, 6),
+    # The rest of the shop: clothes, bags, beauty and accessories, so the demo is not only shoes.
+    ("ANKARA-DRS-M", "Ankara Print Midi Dress, size M", "Tailored midi gown in a bright Ankara print, lined bodice.", "M", "Multicolour", 2800000, 2400000, 6),
+    ("ANKARA-DRS-L", "Ankara Print Midi Dress, size L", "Tailored midi gown in a bright Ankara print, lined bodice.", "L", "Multicolour", 2800000, 2400000, 4),
+    ("LINEN-SET-L", "Beige Linen Two-Piece Set, size L", "Relaxed shirt and trousers in breathable linen.", "L", "Beige", 3400000, 3000000, 5),
+    ("JEANS-HW-32", "Blue High-Waist Straight Jeans, size 32", "Rigid denim with a straight leg and a high waist.", "32", "Blue", 2200000, 1850000, 8),
+    ("KAFTAN-CRM-OS", "Cream Kaftan, one size", "Free-flowing kaftan for church, owambe or the office.", "One size", "Cream", 2500000, 2150000, 7),
+    ("TOTE-TAN", "Tan Leather Tote Bag", "Roomy tote with a zip pocket that fits a 14-inch laptop.", "", "Tan", 3500000, 3000000, 4),
+    ("CROSS-BLK", "Black Mini Crossbody Bag", "Small crossbody with an adjustable strap for evenings out.", "", "Black", 1800000, 1500000, 9),
+    ("BACK-OLV", "Olive Canvas Day Backpack", "Water-resistant canvas backpack with a padded laptop sleeve.", "", "Olive", 1600000, 1350000, 6),
+    ("SHEA-RAW-250", "Raw Shea Butter, 250g", "Unrefined shea butter for skin and hair, no added fragrance.", "250g", "", 650000, 520000, 20),
+    ("BLACK-SOAP-150", "African Black Soap, 150g", "Traditional black soap for face and body.", "150g", "", 350000, 280000, 25),
+    ("LIP-TRIO", "Lip Gloss Trio", "Three glossy shades with a sheer finish, in a gift box.", "", "Assorted", 900000, 750000, 12),
+    ("HOOP-GLD", "Gold-Plated Hoop Earrings", "Lightweight 40mm hoops with hypoallergenic posts.", "", "Gold", 800000, 650000, 15),
+    ("BEADS-WST", "Beaded Waist Beads", "Hand-strung waist beads on a tie string.", "", "Multicolour", 600000, 480000, 18),
+    ("SUN-CAT", "Cat-Eye Sunglasses", "Cat-eye frames with UV400 lenses and a hard case.", "", "Tortoiseshell", 1200000, 950000, 10),
+    ("PWRBANK-BLK", "20,000mAh Power Bank", "Fast-charging power bank with USB-C and two USB-A ports.", "", "Black", 2500000, 2200000, 5),
 ]
 ZONES = [("Ikeja", 250000), ("Yaba", 200000), ("Lekki", 350000), ("Surulere", 220000), ("Victoria Island", 300000)]
 

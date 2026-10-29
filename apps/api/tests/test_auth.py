@@ -296,3 +296,34 @@ def test_claiming_refuses_bad_input_and_never_takes_over_an_account(env: Env) ->
         claim(session, "Ada's Footwear", "ada@example.com", "a good long password")
         with pytest.raises(ValueError, match="already has a login"):
             claim(session, "Ada's Footwear", "other@example.com", "a different long password")
+
+
+def test_replacing_a_login_changes_the_details_and_signs_out_every_session(env: Env, anonymous_client: TestClient) -> None:
+    from app.claim_vendor import claim
+
+    with env.session() as session:
+        claim(session, "Ada's Footwear", "ada@example.com", "a good long password")
+
+    first = anonymous_client.post("/auth/login", json={"email": "ada@example.com", "password": "a good long password"})
+    assert first.status_code == 200
+    old_token = first.json()["sessionToken"]
+
+    with env.session() as session:
+        claim(session, "Ada's Footwear", "demo@example.com", "a demo passphrase", replace=True)
+        # The vendor may keep its own address and only change the password.
+        claim(session, "Ada's Footwear", "demo@example.com", "a newer passphrase", replace=True)
+
+    assert anonymous_client.get("/auth/me", headers=bearer(old_token)).status_code == 401
+    assert anonymous_client.post("/auth/login", json={"email": "ada@example.com", "password": "a good long password"}).status_code == 401
+    response = anonymous_client.post("/auth/login", json={"email": "demo@example.com", "password": "a newer passphrase"})
+    assert response.status_code == 200 and response.json()["vendor"]["name"] == "Ada's Footwear"
+
+
+def test_replacing_never_takes_another_vendors_email(env: Env, anonymous_client: TestClient) -> None:
+    from app.claim_vendor import claim
+
+    assert signup(anonymous_client, email="bola@example.com").status_code == 201
+    with env.session() as session:
+        claim(session, "Ada's Footwear", "ada@example.com", "a good long password")
+        with pytest.raises(ValueError, match="already used by another vendor"):
+            claim(session, "Ada's Footwear", "bola@example.com", "a good long password", replace=True)
