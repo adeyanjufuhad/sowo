@@ -22,7 +22,7 @@ function Body({ text }: { text: string }) {
       {parts.map((part, i) =>
         /^https?:\/\//.test(part) ? (
           <span key={i} className="my-1 inline-flex items-center rounded-full bg-accent-strong px-3 py-1 text-xs font-medium text-white">
-            Pay with Paystack (test)
+            Pay with Paystack
           </span>
         ) : (
           <span key={i}>{part}</span>

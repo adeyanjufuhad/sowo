@@ -14,8 +14,8 @@ const STEPS: { pose: ClayName; title: string; body: string }[] = [
   },
   {
     pose: "coin",
-    title: "Payment is verified",
-    body: "Sowo sends a Paystack link. The order counts when Paystack confirms it, not when a screenshot arrives.",
+    title: "Payment is checked",
+    body: "Buyers pay to your bank account, or by Paystack link if you connect it. An order counts as paid when the money lands, never when a screenshot arrives.",
   },
   {
     pose: "pack",

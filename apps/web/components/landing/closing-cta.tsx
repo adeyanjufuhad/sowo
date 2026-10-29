@@ -1,4 +1,4 @@
-import { ArrowRight, LayoutDashboard } from "lucide-react";
+import { ArrowRight, Store } from "lucide-react";
 import { ButtonLink } from "@/components/ui/button";
 import { Clay } from "./clay";
 import { Reveal } from "./reveal";
@@ -18,14 +18,14 @@ export function ClosingCta() {
             Close the shop. Sowo keeps selling.
           </h2>
           <p className="mx-auto mt-5 max-w-[46ch] text-base leading-relaxed text-ink-soft sm:text-lg md:mx-0">
-            Haggle with Sowo as a buyer, then open the vendor dashboard and watch the order land.
+            Try the demo shop as a buyer, then open the vendor dashboard and watch the order land.
           </p>
           <div className="mt-8 flex flex-col items-center gap-3 sm:flex-row md:justify-start">
-            <ButtonLink href="/try" size="lg" icon={<ArrowRight className="size-4" strokeWidth={2} />}>
-              Try the live demo
+            <ButtonLink href="/signup" size="lg" icon={<ArrowRight className="size-4" strokeWidth={2} />}>
+              Start selling
             </ButtonLink>
-            <ButtonLink href="/dashboard" variant="secondary" size="lg" icon={<LayoutDashboard className="size-4" strokeWidth={1.75} />}>
-              Vendor dashboard
+            <ButtonLink href="/try" variant="secondary" size="lg" icon={<Store className="size-4" strokeWidth={1.75} />}>
+              Visit a demo shop
             </ButtonLink>
           </div>
         </Reveal>

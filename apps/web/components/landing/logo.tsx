@@ -1,6 +1,7 @@
+import { BRAND_NAME } from "@/lib/site";
 import { cn } from "@/lib/utils";
 
-/** Sowo wordmark: a terracotta speech bubble with a smile, then "sowo". */
+/** Sowo wordmark: a terracotta speech bubble with a smile, then the name with its Yoruba tone marks. */
 export function Logo({ className, tone = "ink" }: { className?: string; tone?: "ink" | "paper" }) {
   return (
     <span className={cn("inline-flex items-center gap-2", className)}>
@@ -14,12 +15,13 @@ export function Logo({ className, tone = "ink" }: { className?: string; tone?: "
         <path d="M12.5 17.6c1.9 1.7 5.1 1.7 7 0" stroke="var(--night)" strokeWidth="1.6" strokeLinecap="round" fill="none" />
       </svg>
       <span
+        lang="yo"
         className={cn(
-          "font-display text-[22px] leading-none font-bold tracking-[-0.04em]",
+          "font-display text-[22px] leading-none font-bold tracking-[-0.03em]",
           tone === "ink" ? "text-ink" : "text-paper",
         )}
       >
-        sowo
+        {BRAND_NAME}
       </span>
     </span>
   );

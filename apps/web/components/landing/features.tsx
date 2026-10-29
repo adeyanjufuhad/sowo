@@ -58,14 +58,14 @@ function PriceLadder() {
   );
 }
 
-function WebhookCard() {
+function PaymentCard() {
   return (
     <div className="w-full max-w-sm rounded-2xl bg-night p-5 font-mono text-[13px] text-paper/90">
-      <p className="text-mustard">charge.success</p>
+      <p className="text-mustard">payment.confirmed</p>
       <dl className="mt-3 space-y-1.5">
         {[
           ["reference", "SW-1043"],
-          ["signature", "verified"],
+          ["method", "bank transfer"],
           ["amount", "₦43,500 = order total"],
         ].map(([k, v]) => (
           <div key={k} className="flex justify-between gap-4">
@@ -139,10 +139,10 @@ export function Features() {
           <Tile
             className="md:col-span-2"
             delay={100}
-            title="Verified payments"
-            body="Paystack confirms every order by webhook. No packing for fake transfer alerts."
+            title="Payments that hold up"
+            body="Bank transfer into your own account, or a Paystack link if you connect one. An order counts as paid when the money is, not when a screenshot arrives."
           >
-            <WebhookCard />
+            <PaymentCard />
           </Tile>
           <Tile
             className="md:col-span-2"
