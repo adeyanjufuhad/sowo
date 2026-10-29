@@ -91,10 +91,16 @@ def test_a_vendor_adds_a_product(client: TestClient) -> None:
 
 def test_a_new_product_can_be_sold_by_the_assistant_and_its_floor_stays_private(env: Env, client: TestClient) -> None:
     make_product(client, name="Leather Tote Bag", floorPriceKobo=2_611_111)
+
+    def quote_tote(messages: list[dict[str, Any]]) -> dict[str, Any]:
+        # The seeded catalog has its own tote, so the test reads the price off its own sku, not the first hit.
+        hits = last_tool_result(messages, "search_catalog")["results"]
+        return say(f"The tote bag is {next(hit['price'] for hit in hits if hit['sku'] == 'TOTE-01')}.")
+
     model = ScriptedModel(
         call("search_catalog", query="tote bag"),
         call("evaluate_offer", sku="TOTE-01", offer_naira=26_000),
-        lambda messages: say(f"The tote bag is {last_tool_result(messages, 'search_catalog')['results'][0]['price']}."),
+        quote_tote,
     )
 
     reply = say_to_sowo(env, new_chat(env), "do you have a tote bag? I can pay 26k", model)

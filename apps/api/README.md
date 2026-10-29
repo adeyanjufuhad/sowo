@@ -133,6 +133,12 @@ A vendor created before accounts existed, or by the demo seed, has no login. Giv
 python -m app.claim_vendor "Ada's Footwear" ada@example.com
 ```
 
+To change the email and password of a vendor that already has a login, add `--replace`. It also signs out every session the account had, so the old details stop working everywhere:
+
+```bash
+python -m app.claim_vendor "Ada's Footwear" demo@example.com --replace
+```
+
 ## Shop settings
 
 Everything that differs from one vendor to the next lives on the vendor's row in the database, not in the environment, so any number of vendors can share one deployment. The environment keeps only the platform's secrets (Meta app secret, access token, verify token; Paystack key; database; Ollama).
