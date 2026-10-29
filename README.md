@@ -65,9 +65,9 @@ Today's scope is deliberately narrow: one shop per account, one item per order, 
 
 ## Demo
 
-- **Live demo:** <https://web-one-mu-94.vercel.app> — `/try` runs against the real API and a real Qwen3, and sells the shop named by `SIMULATOR_VENDOR_NAME` on that deployment
+- **Live demo:** <https://web-one-mu-94.vercel.app> — `/try` runs against the real API and a real Qwen3, and sells Adeyanju's Store, the shop named by `SIMULATOR_VENDOR_NAME` on that deployment
 - **Demo dashboard login:** `demo@sowo.example` / `Sowo-Demo-2026` — sign in at `/login` (or open `/dashboard`) to see the vendor side of the same shop `/try` sells. Everything in it is demo data.
-- **Demo video:** _add the video link before submission_
+- **Demo video:** <https://drive.google.com/file/d/1VulJeZXvf5YvWnBpX32rMhTqJr896mCD/view?usp=sharing>
 
 | Buyer simulator, mid-haggle | Vendor dashboard |
 | --- | --- |
@@ -92,7 +92,7 @@ In the browser-only demo mode (no backend), step 3 is a **Pay ₦43,500** button
 
 ### Demo mode
 
-With no backend configured, the web app runs the **mock backend inside your browser** and stores it in `localStorage`. A scripted stand-in plays Qwen3's part: it reads the message, calls the same four tools and phrases the reply, while the same server-side pricing code decides every number. Each visitor gets a private sandbox that works offline, and `/try` and `/dashboard` share it. **Reset demo data** on the dashboard restores the seed. The header shows a "Demo mode" label so nobody mistakes it for the real model.
+With no backend configured, the web app runs the **mock backend inside your browser** and stores it in `localStorage`. A scripted stand-in plays Qwen3's part: it reads the message, calls the same tools and phrases the reply, while the same server-side pricing code decides every number. Each visitor gets a private sandbox that works offline, and `/try` and `/dashboard` share it. **Reset demo data** on the dashboard restores the seed. The header shows a "Demo mode" label so nobody mistakes it for the real model.
 
 ## Quick start
 
@@ -172,7 +172,7 @@ flowchart LR
 
 The model **never sees the floor price**, not in a prompt, a tool output or a log. All money is **integer kobo** end to end, and only formatted as naira (`₦43,500`) at the edge of the UI.
 
-### The four tools
+### The tools
 
 | Tool | The model passes in | The server returns |
 | --- | --- | --- |
@@ -180,6 +180,9 @@ The model **never sees the floor price**, not in a prompt, a tool output or a lo
 | `evaluate_offer` | a product and the buyer's offer | `ACCEPT` with the agreed price, or `COUNTER` / `HOLD` with the server's price |
 | `get_quote` | items and a delivery area, with **no prices** | the lines, delivery fee and total, priced by the server |
 | `request_payment` | a quote id | an order and a reference, plus a Paystack link or the vendor's bank details depending on how the shop takes payment |
+| `escalate_to_vendor` | a one-sentence reason | hands the chat to the owner and stops Sowo replying |
+
+In bank-transfer mode the model also gets `report_payment_sent`: the buyer's "I don transfer" only flags the order and alerts the vendor. It never marks the order paid.
 
 ### One sale, step by step
 
@@ -242,14 +245,14 @@ docs/
 Qwen3 is the only model in the product, and it runs through Ollama locally or an OpenAI-compatible hosted API. Its job is narrow:
 
 1. Read the buyer's message, including Pidgin and mixed-language messages.
-2. Choose one of the four tools above and fill in its arguments.
+2. Choose one of the tools above and fill in its arguments.
 3. Turn the server's result into a short, natural reply in the buyer's register.
 
 It does not hold prices, totals or stock. Every number in a reply is copied from a tool output the server computed.
 
 ### Why an open-weight model
 
-- **Open weights, no API calls.** Qwen3 runs on the vendor's own machine, so there are no closed-model API calls anywhere in the product and buyers' conversations don't leave it.
+- **Open weights, no closed model.** The same Qwen3 runs on the vendor's own machine through Ollama, or, for the public demo, on a hosted OpenAI-compatible API that serves the open weights. Nothing in the product calls a closed model, and a vendor who runs it locally keeps buyers' conversations on their own machine.
 - **Tool calling.** Qwen3 supports function calling, which is what this design needs.
 - **Cost.** A vendor shouldn't need a per-message bill to sell a pair of shoes.
 
@@ -267,22 +270,23 @@ Qwen3 is released under the **Apache 2.0** licence. Model weights are downloaded
 ### Known limitations
 
 - A general-purpose model is not tuned for Nigerian Pidgin. Unusual spellings, slang and code-switching will sometimes be misread, which is why the server, not the model, validates every offer and amount.
-- Small local models can pick the wrong tool or invent arguments. The server rejects tool inputs it can't use.
-- Latency depends on the vendor's hardware. A short reply delay is built in so replies feel natural.
+- Smaller open-weight models can pick the wrong tool or invent arguments. The server rejects tool inputs it can't use.
+- Latency depends on where Qwen3 runs: the vendor's own hardware with Ollama, or the host's queue for the hosted demo.
+- The hosted demo uses a free API tier capped at 200,000 tokens a day, about a hundred agent turns. When the cap is reached the host answers `429` and, after one retry, Sowo sends its apology and asks the buyer to try again later; the cap resets daily.
 - Today's catalogue search is a keyword match, not semantic search.
-- The demo needs no model, so it shows the flow rather than Qwen3's actual accuracy.
+- In browser-only demo mode a scripted stand-in plays the model, so that mode shows the flow rather than Qwen3's actual accuracy.
 
 ### Results
 
-_To be filled in by the backend lead, from real runs:_
+_From the hosted demo and local runs; rows without a measurement yet say so:_
 
 | Measure | Result |
 | --- | --- |
-| Model and size tested | _e.g. `qwen3:8b`_ |
-| Correct tool chosen, on _N_ Pidgin and English test messages | _…_ |
-| Floor price never leaked, on _N_ adversarial prompts | _…_ |
-| Median reply time on the test machine | _…_ |
-| Notable failure cases | _…_ |
+| Model and size tested | `qwen/qwen3.8-27b` on Groq for the hosted demo; `qwen3:8b` on Ollama locally |
+| Correct tool chosen, on _N_ Pidgin and English test messages | _Not yet measured_ |
+| Floor price never leaked, on _N_ adversarial prompts | _Not yet measured; the tests assert the floor never reaches the model's prompt or a stored tool trace_ |
+| Median reply time on the test machine | _Not yet measured_ |
+| Notable failure cases | Groq's free daily token cap returns `429` and the buyer sees the fallback apology; a malformed tool name from the host once needed a retry; Pidgin phrasing varies by message |
 
 ## Tests
 
@@ -327,9 +331,9 @@ The clay mascot and objects in `apps/web/public/brand` were **generated with Goo
 We believe in saying plainly how this was built:
 
 - **The web app, the shared API contract and its documentation** were written with the help of **Claude Code** (Anthropic's coding assistant), directed, reviewed and tested by the frontend lead. That includes this README.
-- **No AI service is called by the product.** The only model at runtime is Qwen3, running locally. Nothing in the repository calls OpenAI, Anthropic or any other hosted model API. In demo mode, a scripted stand-in plays the model.
+- **No closed model is called by the product.** The only model at runtime is Qwen3: locally through Ollama, or on the hosted demo an open-weight Qwen3 served by Groq's OpenAI-compatible API. Nothing calls OpenAI, Anthropic or any other closed model. In browser-only demo mode, a scripted stand-in plays the model.
 - Interface rules (keyboard focus, motion preferences, touch targets) followed [Vercel's Web Interface Guidelines](https://vercel.com/design/guidelines), and the team supplied a reference site for the overall look. [taste-skill](https://github.com/tasteskill/tasteskill) (MIT) was loaded as design guidance while building.
-- _Backend lead: list any AI tools used for `apps/api` here (the folder includes an `AGENTS.md` for coding assistants)._
+- **The backend, deployment and demo data** were built and refined with the help of **Qoder** (an AI coding agent), directed and reviewed by the team. Every change was reviewed before merging and checked with the pytest suite and against the live deployment.
 
 ### Data
 
