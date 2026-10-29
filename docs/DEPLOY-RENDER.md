@@ -143,10 +143,22 @@ this is setting, not code.
    samples from the dashboard: real messages are not sent to your callback at all, not even from your own verified
    number, and nothing appears in the Render log. Publishing needs a **Privacy policy URL**; the site serves one at
    `/privacy`.
-7. **Dashboard → Shop settings**: paste the Phone number ID into *WhatsApp phone number ID* and your phone into
+7. **Attach the app to the WhatsApp Business Account.** The *Subscribed* switch in step 5 covers the webhook fields
+   on the app; it does not attach the app to the account. Without that attachment Meta accepts your callback and
+   *Test* works, but a real message never reaches it and nothing appears in the Render log — even published. Check it
+   in **Tools → Graph API Explorer** (use the token the page fills in; do not copy it anywhere):
+   `GET /{WhatsApp Business Account ID}/subscribed_apps` must list your app by name. If only
+   `WA DevX Webhook Events 1P App` is there, switch the method to **POST** on the same path and **Submit**; the reply
+   is `{"success": true}` and the next real message arrives.
+8. **Dashboard → Shop settings**: paste the Phone number ID into *WhatsApp phone number ID* and your phone into
    *Alert phone*. It should say connected.
-8. Message the test number from your phone. A `POST /webhooks/whatsapp` 200 shows up in the Render log within a
+9. Message the test number from your phone. A `POST /webhooks/whatsapp` 200 shows up in the Render log within a
    second or two, the buyer gets Sowo's reply, and the chat appears in the dashboard.
+
+   A 200 followed by `WhatsApp messages failed: Client error '401 Unauthorized'` means the delivery worked and the
+   token did not: it expired, or was pasted with a newline. Sowo still writes the reply and it shows in the
+   dashboard, but the buyer never receives it. Generate a fresh permanent token (step 3) and update
+   `WHATSAPP_ACCESS_TOKEN`.
 
 To check the wiring without spending model quota, set `WHATSAPP_ECHO_MODE=true` on Render: the API then answers
 `Echo: <what the buyer typed>` and never calls the model. Turn it off afterwards.
