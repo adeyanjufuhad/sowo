@@ -194,7 +194,10 @@ class ToolBox:
             handlers["report_payment_sent"] = self._report_payment_sent
         handler = handlers.get(name)
         if handler is None:
-            return ToolOutcome({"error": f"There is no tool called {name}."})
+            # Qwen has written a near-miss name ("evaluate Offering") often enough to burn every tool round, so
+            # tell it what it may call instead of only that this one is wrong.
+            offered = ", ".join(sorted(handlers))
+            return ToolOutcome({"error": f"There is no tool called {name}. The tools are {offered}."})
         try:
             return handler(arguments)
         except (KeyError, TypeError, ValueError) as exc:

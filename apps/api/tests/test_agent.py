@@ -4,7 +4,7 @@ import json
 
 import pytest
 from conftest import Env
-from helpers import LOAFERS_FLOOR_KOBO, ScriptedModel, call, say
+from helpers import LOAFERS_FLOOR_KOBO, ScriptedModel, call, last_tool_result, say
 from scenarios import loafers_sale_model, new_chat, say_to_sowo, sell_loafers
 from sqlalchemy import select
 
@@ -251,3 +251,18 @@ def test_the_model_is_told_what_the_system_already_knows(env: Env) -> None:
     assert "Agreed price for Black Leather Loafers, size 43 (sku LOAF-BLK-43): ₦41,000" in system
     assert "Payment link already sent for order" in system
     assert "We deliver to:" in system and "Ikeja" in system
+
+
+def test_an_unknown_tool_name_tells_the_model_what_it_may_call_instead(env: Env) -> None:
+    chat = new_chat(env)
+    model = ScriptedModel(
+        call("evluate_offer", sku="LOAF-BLK-43", offer_naira=35000),
+        say("Let me check that for you."),
+    )
+    reply = say_to_sowo(env, chat, "Can you do 35k on the loafers?", model)
+
+    told = last_tool_result(model.requests[-1]["messages"], "evluate_offer")["error"]
+    assert "There is no tool called evluate_offer" in told
+    for tool in ("search_catalog", "evaluate_offer", "get_quote", "request_payment", "escalate_to_vendor"):
+        assert tool in told
+    assert reply is not None and reply.text == "Let me check that for you."
