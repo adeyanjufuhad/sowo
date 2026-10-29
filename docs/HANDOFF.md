@@ -40,16 +40,20 @@ Done and merged (PR #3 and PR #4):
 - Hardening: JSON logs with request ids (phone numbers and tokens masked), rate limits (sign-up/sign-in per address, failed logins per email, webhooks; in memory, per process), `GET /ready` (checks the DB) vs `GET /health` (does not).
 - CI runs ruff, pytest, lint, typecheck, vitest and build on every push and PR.
 
-## In progress: hosted Qwen3 (branch `feat/hosted-model`, NOT merged)
+## Hosted Qwen3: merged, and what running it for real taught us
 
-Fuhad does not want Qwen3 on his laptop; he wants it on a **free** hosted service. Work started:
+Fuhad does not want Qwen3 on his laptop; he wants it on a **free** hosted service. That is what the demo runs on now.
+
 - `apps/api/app/services/openai_compat.py`: `OpenAICompatibleClient` speaking `/chat/completions` (Groq, OpenRouter, Cloudflare Workers AI, vLLM...). Translates the agent's Ollama-style messages to OpenAI's (tool-call ids, JSON-string arguments, `tool` role) and back. One patient retry on 429/502/503.
 - `apps/api/app/services/model.py`: `get_chat_model()` picks the client from `MODEL_PROVIDER` (`ollama` default, or `openai`).
 - `app/config.py`: new settings `MODEL_PROVIDER`, `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL`, `LLM_REASONING_EFFORT`; a validator requires base URL and model when the provider is `openai`.
 - `app/services/ollama.py`: `ModelError` added, `OllamaError = ModelError` kept as an alias. `app/deps.py` and `app/chat_cli.py` now use the configured model.
-- The existing 328 API tests and ruff pass with these changes.
 
-Done on this branch since the first handoff (see the progress log at the bottom): tests (`tests/test_openai_compat.py`), `.env.example`, both READMEs, and the Paystack-payouts line. What is left is only: open/merge the PR, then a real run against a hosted Qwen3 once Fuhad has an account and key.
+Merged as PR #5. Live on Groq with `qwen/qwen3.8-27b` and `LLM_REASONING_EFFORT=none`. Three things only showed up against the real host, and all three are fixed:
+
+1. **Qwen writes tool calls badly often enough to matter.** Sometimes as malformed XML the host accepts, sometimes as a mangled *name* (`evaluate$$$$$offer`, `evaluate Offering`) that the host rejects with 400 `tool_use_failed`. PR #7 reads calls back out of `failed_generation`; PR #11 also reads a mangled name and resolves it against the tools that request actually offered, only when exactly one tool fits.
+2. **Free-tier input is about 7,000 tokens/minute** for this model, roughly 1-2 buyer messages a minute. Retries wait up to 20 s, twice. A judge clicking through fast will hit it; the buyer waits, nothing is lost.
+3. **A dead model must not look like a dead product.** `flow.answer_buyer` catches `ModelError`, logs it and escalates the conversation to the vendor instead of hanging.
 
 ### Choosing the free host (research on 2026-10-27, treat as unverified and recheck)
 
@@ -70,15 +74,18 @@ LLM_MODEL=qwen/qwen3.8-27b
 LLM_REASONING_EFFORT=none
 ```
 
+## Decisions Fuhad has since made
+
+- **Hosting: free tiers only, whole stack under N1,000.** API on Render Free (`https://sowo-api.onrender.com`), web on Vercel (`https://web-one-mu-94.vercel.app`), data on the Neon **dev** branch, Qwen3 on Groq. Fly.io was ruled out because it needs a card. Steps in `docs/DEPLOY-RENDER.md`.
+- **Paystack is not used for this submission.** Payment in the demo is the bank-transfer mode (`paymentMode = "manual"`): the assistant gives the vendor's account details, the buyer says they sent it, and only the vendor's **Mark paid** makes an order paid. Paystack stays in the code as the optional path. **Do not build Paystack vendor payouts.**
+- **Judges try the real thing.** `SIMULATOR_ENABLED=true` on one demo vendor, picked by `SIMULATOR_VENDOR_NAME` (config default "Ada's Footwear"); `/try` talks to that shop.
+
 ## Open decisions (Fuhad's, not yours)
 
-- **API hosting target** (undecided). Suggestion: Fly.io `lhr` for the API (near Neon London) and Vercel for web. Web needs `NEXT_PUBLIC_API_URL` and `API_INTERNAL_URL`. Set `CLIENT_IP_HEADER=x-forwarded-for` only if the API is reachable solely through the web proxy.
-- **What judges can try.** With the simulator off and no hosted Qwen3, a production deploy shows only a signup page. Options: (a) a separate public demo deploy in mock mode (no `NEXT_PUBLIC_API_URL`) for `/try`; (b) the real API with `SIMULATOR_ENABLED=true` on one demo vendor (contradicts "no more demo").
-- `apps/web/components/app-header.tsx` has a Buyer/Vendor switch linking to `/try`, which 404s when the simulator is off. Fuhad's file.
-- Migrations on Neon main: only after hosting is decided and he says go.
-- WhatsApp alert templates: Fuhad submits them in Meta Business Manager (approval takes hours to days); vendor alerts outside the 24-hour window fail without them. Code then needs the template names wired in.
-- Live checks against real Qwen3 / Meta WhatsApp / Paystack have never been run. They need accounts and keys from Fuhad. Expect prompt tuning on the first real run.
-- Submission: `README.md` lines ~38-39 still say to add the deployed URL and the video link before submission.
+- WhatsApp alert templates: Fuhad submits them in Meta Business Manager (approval takes hours to days); vendor alerts outside the 24-hour window fail without them. Code then needs the template names wired in. Nothing has been pointed at Meta's API yet.
+- Migrations on Neon main: only after he says go. The demo uses the dev branch.
+- Live checks against real Meta WhatsApp / Paystack have never been run; they need accounts and keys from Fuhad.
+- Submission: `README.md` still has a placeholder for the demo video link before the deadline.
 
 ## Small cleanups nobody has done
 
@@ -127,3 +134,9 @@ Fuhad coordinates. A "Sowo backend Python setup" Claude session coordinated merg
 - 2026-10-27, Claude: Fuhad's budget is under N1,000, so Fly.io (about $2.19/month, card needed) is out. Plan: API on Render's free web service (native Python, no Docker), web on Vercel, demo data on the Neon **dev** branch, Qwen3 on Groq. Steps in `docs/DEPLOY-RENDER.md`. The Docker files on `chore/api-docker` (other developer) are now optional.
 - 2026-10-29, Qoder: Render Free API deployed at https://sowo-api.onrender.com; `/health` and `/ready` returned healthy before the latest `PUBLIC_BASE_URL` redeployment, which reached Live. Vercel at https://web-one-mu-94.vercel.app reached Ready after Fuhad configured the API URLs. Live sign-in, the complete simulator sale, and dashboard verification remain pending. Real WhatsApp and Paystack have not been tested; do not treat simulator checks as live payment verification. Never migrate or seed protected Neon main; only the confirmed DEV branch is authorized.
 - 2026-10-29, Qoder: Added an accessible Show/Hide password eye button to the shared login/signup form on `feat/password-visibility`, preserving authentication payloads and starting masked. Checks passed in a tracked-source QA copy without dotenv files or local databases: 356 API tests, Ruff, 32 web tests, Next route type generation, TypeScript, and ESLint. The broken local pnpm launcher was bypassed using installed tool entrypoints; TypeScript passed on a sequential retry after an earlier memory failure. The local preview rendered, but browser toggle/keyboard/responsive verification remains pending because the form contained a user-entered or autofilled password; no password was revealed or submitted by automation. Keep the temporary `.qa-password-visibility` directory out of commits. This UI change still needs Fuhad's review and merge; it is not deployed.
+- 2026-10-29, Qoder: **PR #9 (password toggle) merged by Fuhad.** The browser check of Show/Hide, keyboard focus and narrow screens was never done, so it is verified only by its unit tests and build, not by eye.
+- 2026-10-29, Qoder: `/try` looked canned — same reply whatever the buyer typed. Two causes, neither in the agent: Render had no `SIMULATOR_VENDOR_NAME`, so `demo_vendor()` kept matching the config default "Ada's Footwear" while Fuhad's products live in his own shop, and the browser was holding a stale `sowo.try.conversation` id in `localStorage`. Setting `SIMULATOR_VENDOR_NAME` on Render and clearing that key made `/try` sell his shop with real tool calls. 356 API tests pass with a clean env; the suite is deliberately blind to a developer's `.env`.
+- 2026-10-29, Qoder: **PR #10 merged** - README, `apps/api/README.md` and `docs/DEPLOY-RENDER.md` now present bank transfer as the demo's payment path with Paystack optional, and say nowhere that the AI verifies payment. Decision recorded above: no Paystack payouts, no Paystack in the submission.
+- 2026-10-29, Qoder: Found the blocker for the live sale. Every haggle died: Qwen3 wrote the tool name as `evaluate$$$$$offer` / `evaluate Offering`, Groq answered 400 `tool_use_failed` with the arguments intact and the name unusable, PR #7's recovery regex accepted only a clean identifier, so the client raised `ModelError` and the buyer got "Sorry, something went wrong on my side" while the conversation flipped to NEEDS ATTENTION. Fix on `fix/mangled-tool-call-recovery` (PR #11): widen the name group and resolve the name against the tools that request offered, only when exactly one fits, so ambiguous or unknown names still reach the agent's own rejection. 360 API tests and `ruff check` pass. **Not yet proved live** - needs the merge, a Render redeploy, and the walkthrough below run again.
+- 2026-10-29, Qoder: **Skipped deliberately:** the optional AI receipt-check vision helper. Its own gate was "only start with more than 18 hours left"; there were about 14. It is not in the repo and is not claimed anywhere. Fuhad's instruction stands that a screenshot proves nothing: only **Mark paid** (or a verified Paystack webhook) may move an order to paid, and the guard blocking the model from announcing payment is unchanged.
+- **Still to do before submitting:** (1) merge PR #11 and redeploy Render; (2) walk `/try` end to end - black loafers size 43, haggle, "Ikeja", account details, "I've sent the transfer", then **Mark paid** in `/dashboard` - and report anything that misbehaves; the bank fields in `/dashboard/settings` have never been rendered under automation (React's `onChange` did not fire from the driven radio), so Fuhad entered them by hand with invented details; (3) fill the demo video link in `README.md`; (4) nothing has been checked against Meta WhatsApp or Paystack. Keep `.qa-bank-transfer/`, `.qa-password-visibility/`, `.claude/` and `docs/tasks/` out of commits.
