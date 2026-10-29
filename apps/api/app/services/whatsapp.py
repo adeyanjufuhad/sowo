@@ -33,6 +33,40 @@ class InboundMessage:
     text: str  # empty unless kind == "text"
 
 
+@dataclass(frozen=True)
+class DeliveryStatus:
+    id: str
+    status: str  # "sent", "delivered", "read" or "failed"
+    recipient: str  # masked
+    reason: str  # Meta's error for a failure, empty otherwise
+
+
+def parse_statuses(payload: dict[str, Any]) -> list[DeliveryStatus]:
+    """Delivery receipts for the messages we sent. Meta reports a failure here, not on our send call."""
+    statuses: list[DeliveryStatus] = []
+    for entry in payload.get("entry") or []:
+        for change in entry.get("changes") or []:
+            value = change.get("value") if isinstance(change, dict) else None
+            if not isinstance(value, dict):
+                continue
+            for raw in value.get("statuses") or []:
+                if not isinstance(raw, dict) or not raw.get("id"):
+                    continue
+                first = next((e for e in raw.get("errors") or [] if isinstance(e, dict)), {})
+                reason = str(first.get("title") or first.get("message") or "")
+                if first.get("code"):
+                    reason = f"{first['code']}: {reason}"
+                statuses.append(
+                    DeliveryStatus(
+                        id=str(raw["id"]),
+                        status=str(raw.get("status") or ""),
+                        recipient=_mask(str(raw.get("recipient_id") or "")),
+                        reason=reason,
+                    )
+                )
+    return statuses
+
+
 def verify_signature(raw_body: bytes, header: str | None, app_secret: str) -> bool:
     """Meta signs every webhook: X-Hub-Signature-256 is 'sha256=' + HMAC-SHA256(raw body, app secret)."""
     if not header or not app_secret or not header.startswith("sha256="):
@@ -104,7 +138,7 @@ def send_whatsapp_text(phone_number_id: str | None, phone: str, text: str) -> bo
     if not phone_number_id or not is_configured(phone_number_id):
         logger.info("WhatsApp not configured for this vendor; not sending to %s", _mask(phone))
         return False
-    return _post(
+    sent = _post(
         phone_number_id,
         "messages",
         {
@@ -114,6 +148,9 @@ def send_whatsapp_text(phone_number_id: str | None, phone: str, text: str) -> bo
             "text": {"body": text[:MAX_TEXT_LENGTH], "preview_url": True},
         },
     )
+    if sent:
+        logger.info("WhatsApp accepted a reply for %s", _mask(phone))
+    return sent
 
 
 def mark_read(phone_number_id: str | None, message_id: str) -> bool:

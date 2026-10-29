@@ -1,6 +1,7 @@
 """WhatsApp: Meta's handshake, signature checks, and a buyer's message all the way to Sowo's reply."""
 
 import json
+import logging
 from typing import Any
 
 import httpx
@@ -157,6 +158,37 @@ def test_delivery_receipts_are_ignored(env: Env, client: TestClient) -> None:
     assert post_webhook(client, receipt).status_code == 200
     with env.session() as session:
         assert session.scalar(select(Conversation)) is None
+
+
+def test_a_failed_delivery_is_logged_with_metas_reason(
+    env: Env, client: TestClient, caplog: pytest.LogCaptureFixture
+) -> None:
+    failure = {
+        "entry": [
+            {
+                "changes": [
+                    {
+                        "value": {
+                            "statuses": [
+                                {
+                                    "id": "wamid.out",
+                                    "status": "failed",
+                                    "recipient_id": "2348030000000",
+                                    "errors": [{"code": 131047, "title": "Re-engagement message"}],
+                                }
+                            ]
+                        }
+                    }
+                ]
+            }
+        ]
+    }
+
+    with caplog.at_level(logging.WARNING, logger="app.routes_webhooks"):
+        assert post_webhook(client, failure).status_code == 200
+
+    assert "131047: Re-engagement message" in caplog.text
+    assert "…0000" in caplog.text
 
 
 def test_a_later_message_continues_the_same_conversation(env: Env, client: TestClient) -> None:

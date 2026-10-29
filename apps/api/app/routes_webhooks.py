@@ -51,9 +51,13 @@ async def receive_whatsapp_webhook(
     raw = await request.body()
     if not whatsapp.verify_signature(raw, request.headers.get("x-hub-signature-256"), secret):
         raise HTTPException(status_code=403, detail="Invalid signature")
-    messages = whatsapp.parse_inbound(_json_body(raw))
+    payload = _json_body(raw)
+    messages = whatsapp.parse_inbound(payload)
     if messages:
         background.add_task(flow.process_inbound, messages, model)
+    for status in whatsapp.parse_statuses(payload):
+        if status.status == "failed":
+            logger.warning("WhatsApp delivery to %s failed: %s", status.recipient, status.reason or "no reason given")
     return {"status": "received"}
 
 
