@@ -108,9 +108,49 @@ fits inside the 750 free hours. `/health` never touches the database, so Neon ca
 - `/login` with the demo shop's email and password shows the chat, the order and the catalog.
 - Wait 20 minutes without using it, then reload: it should wake within about a minute.
 
+## 6. Connect WhatsApp (optional, live demo)
+
+The API already speaks Meta's Cloud API: it checks every delivery's signature, reads buyer messages (text or a
+picture), answers from the vendor's own number and marks the message read. `tests/test_whatsapp.py` covers the
+handshake, a forged body, a repeated delivery, echo mode and a Meta outage. What is left is all on Meta's side, so
+this is setting, not code.
+
+1. **developers.facebook.com** → Create app → use case **WhatsApp** → link your Meta Business account. Meta gives you
+   a free **test number**. Business verification is not needed for it.
+2. **WhatsApp → API Setup**: add your own phone under *To* and accept the code it sends in WhatsApp. A test number
+   can message **five** verified numbers, and only those numbers can message it.
+3. Collect three values. Type them into Render and the dashboard yourself; never into chat, a commit or an issue:
+   - *App Secret*: App settings → Basic
+   - *Phone number ID*: WhatsApp → API Setup (digits only)
+   - a **permanent** token: Business settings → System users → Add → generate with `whatsapp_business_management`
+     and `whatsapp_business_messaging`. The 24-hour token on the API Setup page dies mid-demo; do not use it.
+4. **Render → sowo-api → Environment**, add and let it redeploy:
+
+   | Name | Value |
+   | --- | --- |
+   | `WHATSAPP_ACCESS_TOKEN` | the permanent token |
+   | `WHATSAPP_APP_SECRET` | the app secret |
+   | `WHATSAPP_VERIFY_TOKEN` | any random phrase you invent; you paste the same phrase into Meta |
+
+5. **WhatsApp → Configuration → Webhook**: Callback URL `https://<your-service>.onrender.com/webhooks/whatsapp`,
+   paste your verify token, **Verify and save**, then subscribe to the **messages** field. Verification fails with
+   403 if the token differs, and the API answers 503 while `WHATSAPP_APP_SECRET` is unset.
+6. **Dashboard → Shop settings**: paste the Phone number ID into *WhatsApp phone number ID* and your phone into
+   *Alert phone*. It should say connected.
+7. Message the test number from your phone. The buyer gets Sowo's reply, and the chat appears in the dashboard.
+
+To check the wiring without spending model quota, set `WHATSAPP_ECHO_MODE=true` on Render: the API then answers
+`Echo: <what the buyer typed>` and never calls the model. Turn it off afterwards.
+
+**Alerts to your own phone will not arrive** until a utility template is approved, because an alert you send to
+yourself is business-initiated and Meta only accepts approved templates outside a 24-hour window opened by that
+person messaging you. Buyer replies are always inside the window the buyer opens, so they do arrive. For a demo,
+watch the dashboard for new orders.
+
 ## Limits to remember
 
 - Groq's free token limit is the bottleneck. Space messages out, or the reply is "Sorry, something went wrong".
 - Nothing here is for real buyers: the simulator endpoints have no sign-in, and the demo data is public.
-- Real WhatsApp needs a Meta number, approved message templates and `WHATSAPP_*` variables. Paystack needs its keys.
-  Bank transfer needs neither, which is why the demo runs on it.
+- Real WhatsApp needs a Meta app, a number and the `WHATSAPP_*` variables (step 6); buyer replies then work at once,
+  vendor alerts need an approved template. Paystack needs its keys. Bank transfer needs neither, which is why the demo
+  runs on it.
