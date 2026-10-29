@@ -115,13 +115,15 @@ picture), answers from the vendor's own number and marks the message read. `test
 handshake, a forged body, a repeated delivery, echo mode and a Meta outage. What is left is all on Meta's side, so
 this is setting, not code.
 
-1. **developers.facebook.com** → Create app → use case **WhatsApp** → link your Meta Business account. Meta gives you
-   a free **test number**. Business verification is not needed for it.
-2. **WhatsApp → API Setup**: add your own phone under *To* and accept the code it sends in WhatsApp. A test number
-   can message **five** verified numbers, and only those numbers can message it.
+1. **developers.facebook.com** → My Apps → Create app → use case **Connect on WhatsApp** → link your Meta Business
+   account. Meta gives you a free **test number**. Business verification is not needed for it.
+2. **Use cases → Customize → Basic setup → Step 1. Try it out**. The app sidebar no longer has a *WhatsApp* item;
+   the test number, the Phone number ID and the WhatsApp Business Account ID all live here. Add your own phone under
+   *To* → *Manage phone number list* and accept the code it sends in WhatsApp. A test number can message **five**
+   verified numbers, and only those numbers can message it.
 3. Collect three values. Type them into Render and the dashboard yourself; never into chat, a commit or an issue:
    - *App Secret*: App settings → Basic
-   - *Phone number ID*: WhatsApp → API Setup (digits only)
+   - *Phone number ID*: Step 1. Try it out (digits only)
    - a **permanent** token: Business settings → System users → Add → generate with `whatsapp_business_management`
      and `whatsapp_business_messaging`. The 24-hour token on the API Setup page dies mid-demo; do not use it.
 4. **Render → sowo-api → Environment**, add and let it redeploy:
@@ -132,12 +134,19 @@ this is setting, not code.
    | `WHATSAPP_APP_SECRET` | the app secret |
    | `WHATSAPP_VERIFY_TOKEN` | any random phrase you invent; you paste the same phrase into Meta |
 
-5. **WhatsApp → Configuration → Webhook**: Callback URL `https://<your-service>.onrender.com/webhooks/whatsapp`,
-   paste your verify token, **Verify and save**, then subscribe to the **messages** field. Verification fails with
-   403 if the token differs, and the API answers 503 while `WHATSAPP_APP_SECRET` is unset.
-6. **Dashboard → Shop settings**: paste the Phone number ID into *WhatsApp phone number ID* and your phone into
+5. **Use cases → Customize → Basic setup → Step 2. Production setup → Configure Webhooks**: Callback URL
+   `https://<your-service>.onrender.com/webhooks/whatsapp`, paste your verify token, **Verify and save**, then in
+   **Webhook fields** switch **messages** to **Subscribed**. Verification fails with 403 if the token differs, and
+   the API answers 503 while `WHATSAPP_APP_SECRET` is unset. A wrong App Secret still verifies (the handshake does
+   not use it) but every delivery then comes back 403, so watch the Render log for `POST /webhooks/whatsapp`.
+6. **Publish the app** (App settings → Publish). While the app is unpublished Meta delivers only the *Test webhooks*
+   samples from the dashboard: real messages are not sent to your callback at all, not even from your own verified
+   number, and nothing appears in the Render log. Publishing needs a **Privacy policy URL**; the site serves one at
+   `/privacy`.
+7. **Dashboard → Shop settings**: paste the Phone number ID into *WhatsApp phone number ID* and your phone into
    *Alert phone*. It should say connected.
-7. Message the test number from your phone. The buyer gets Sowo's reply, and the chat appears in the dashboard.
+8. Message the test number from your phone. A `POST /webhooks/whatsapp` 200 shows up in the Render log within a
+   second or two, the buyer gets Sowo's reply, and the chat appears in the dashboard.
 
 To check the wiring without spending model quota, set `WHATSAPP_ECHO_MODE=true` on Render: the API then answers
 `Echo: <what the buyer typed>` and never calls the model. Turn it off afterwards.
