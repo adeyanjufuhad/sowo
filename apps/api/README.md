@@ -205,13 +205,13 @@ Both webhooks answer `200` straight away and do the real work in the background,
 
 - **The model never sees a floor price.** No tool returns one, the prompt doesn't name the concept, and `tests/test_agent.py` checks everything sent to the model for it.
 - **Every amount in a reply must come from a tool.** `services/guard.py` finds each ₦ amount in the model's reply and compares it with what tools returned in this chat and what the buyer typed. A reply with an unbacked price is sent back to the model once to rewrite; if it still fails, the server writes a plain reply from the tool results.
-- **The model can't announce a payment.** A reply claiming money arrived is blocked the same way. Receipts are written by the server, from the order, after Paystack's webhook.
-- **Payment means a signed Paystack webhook.** `mark_order_paid` checks the reference and that the amount equals the order total in kobo. It is idempotent, so a retried webhook neither double-sells stock nor double-sends a receipt. A mismatched amount flags the chat and alerts the vendor instead.
+- **The model can't announce a payment.** A reply claiming money arrived is blocked the same way. Receipts are written by the server, from the order, once payment is confirmed.
+- **Only the server confirms payment.** In Paystack mode that is a signed webhook: `mark_order_paid` checks the reference and that the amount equals the order total in kobo, and it is idempotent, so a retried webhook neither double-sells stock nor double-sends a receipt. A mismatched amount flags the chat and alerts the vendor instead. In bank-transfer mode it is the vendor tapping **Mark paid**, after looking at her own bank app. A buyer's message, a receipt picture and anything the model says are none of them payment, in either mode.
 - **Prices are re-derived, never trusted.** `request_payment` re-prices the quote just before creating the order, and fails if anything changed.
 
 ## Bank-transfer mode
 
-A vendor who sets `paymentMode` to `manual` (with their account details) in their [shop settings](#shop-settings) stops using Paystack altogether. Ada is the example below:
+This is how the hosted demo takes payment, and it needs no Paystack account at all: Paystack is the optional path, for a vendor who would rather send a link. A vendor who sets `paymentMode` to `manual` (with their account details) in their [shop settings](#shop-settings) stops using Paystack altogether. Ada is the example below:
 
 1. After the haggle, `request_payment` creates the order, holds the stock for `MANUAL_PAYMENT_HOLD_MINUTES`, and gives the model Ada's bank, account name and number plus the order reference to use as the narration. If the account isn't set up (or isn't 10 digits), no order is created and the chat goes to Ada.
 2. The buyer pays from their bank app and sends the receipt picture, or says "I don pay". A picture while an order is waiting flags it; words go to the model, which has a `report_payment_sent` tool that does the same. Either way Ada gets a WhatsApp alert once, and the hold is extended while she checks.
@@ -230,7 +230,9 @@ The receipt is a prompt for Ada, not proof: the picture isn't downloaded, read o
 
 WhatsApp only lets a business send free-form text within 24 hours of the buyer's last message. Replies to buyers are always inside that window. A "pack this" alert to a vendor's `alertPhone` is not, unless Ada has messaged the number recently, so production needs an approved message template for alerts.
 
-## Connect Paystack
+## Connect Paystack (optional)
+
+Only needed for vendors who take the link. Bank-transfer mode works with no Paystack key at all, and is what the hosted demo uses.
 
 1. Use your **test** secret key (Dashboard → Settings → API Keys & Webhooks) as `PAYSTACK_SECRET_KEY`.
 2. Set the **test webhook URL** there to `https://<your-tunnel>/webhooks/paystack`.
@@ -239,13 +241,13 @@ WhatsApp only lets a business send free-form text within 24 hours of the buyer's
 ## Tests
 
 ```bash
-pytest          # 259 tests
+pytest          # 356 tests
 ruff check .
 ```
 
 Tests never touch the network: Qwen3 is a scripted stand-in (`tests/helpers.py`), and Meta's Graph API and Paystack are recorded by `httpx.MockTransport`. They cover the full sale through the tools, the floor price never reaching the model, invented prices and fake "payment received" replies being caught, both signature checks, duplicate and out-of-order webhooks, paused and handed-off chats, outages of Meta, Paystack and Ollama, the simulator endpoints, and bank-transfer mode (account details, receipts, Mark paid, double taps, expired holds).
 
-**Not yet verified:** a run against a live Qwen3, a live WhatsApp number and a live Paystack account. The agent and clients are written to those APIs' documented shapes and exercised end to end with stand-ins, but the first real run will probably need prompt tuning for the model you pick.
+**Not yet verified:** a live Meta WhatsApp number and a live Paystack account. The agent and clients are written to those APIs' documented shapes and exercised end to end with stand-ins, so the first real run will probably need prompt tuning. Qwen3 itself has been run for real through a hosted OpenAI-compatible endpoint, tool loop, guards and all.
 
 ## Known limits
 

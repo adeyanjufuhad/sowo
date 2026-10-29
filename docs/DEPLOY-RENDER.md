@@ -64,10 +64,13 @@ password in the README as demo credentials (it is demo data only). Use a passwor
    | `LLM_REASONING_EFFORT` | `none` |
    | `PUBLIC_BASE_URL` | the Render address, such as `https://sowo-api.onrender.com` |
    | `CORS_ORIGINS` | the web app's address, such as `https://sowo.vercel.app` |
+   | `SIMULATOR_VENDOR_NAME` | optional. The shop `/try` sells, matched on its exact name. Unset, it is the seeded
+   `Ada's Footwear`; point it at your own shop's name to demo with your own catalog. Changing it needs a redeploy. |
 
    Leave `ENVIRONMENT` unset (it defaults to `production`; the log will warn that the simulator is on, which is
    expected here). Leave `CLIENT_IP_HEADER` unset: the API is public, so a forwarded address could be faked. Leave the
-   WhatsApp and Paystack variables unset until you have real accounts.
+   WhatsApp and Paystack variables unset until you have real accounts — a demo does not need them, because the shop can
+   take payment by bank transfer instead (see step 5).
 5. Create the service. When the build finishes, open `https://<your-service>.onrender.com/ready`. It should say
    `{"status":"ready"}`. If the build fails on a package, add `PYTHON_VERSION` (CI uses 3.12) and redeploy.
 
@@ -93,7 +96,15 @@ fits inside the 750 free hours. `/health` never touches the database, so Neon ca
 ## 5. Check it
 
 - `/ready` says ready.
-- `/try` on the live web app: ask for the black loafers in size 43, haggle, give "Ikeja" as the area, pay.
+- Sign in and open **Shop settings**. Under *How buyers pay you*, choose **Bank transfer** and fill in the account
+  fields. This is a public demo, so use details that belong to nobody: a made-up bank name, a made-up account name and
+  a made-up 10-digit number. Save. (Paystack is the other option and needs its keys; the demo does not need them.)
+- Open **Catalog** and add at least one delivery area with a fee, such as Ikeja. Without one Sowo cannot price a
+  delivery, and the sale stops at the haggle.
+- `/try` on the live web app: ask for the black loafers in size 43, haggle, give "Ikeja" as the area. Sowo quotes the
+  total and gives the account details with the order reference for the narration. Tap **I've sent the transfer**.
+- Back in the dashboard: the order is still waiting, because a buyer's word is not payment. Tap **Mark paid**. The
+  order goes to `PAID` and the buyer gets a receipt written by the server, not by the model.
 - `/login` with the demo shop's email and password shows the chat, the order and the catalog.
 - Wait 20 minutes without using it, then reload: it should wake within about a minute.
 
@@ -102,3 +113,4 @@ fits inside the 750 free hours. `/health` never touches the database, so Neon ca
 - Groq's free token limit is the bottleneck. Space messages out, or the reply is "Sorry, something went wrong".
 - Nothing here is for real buyers: the simulator endpoints have no sign-in, and the demo data is public.
 - Real WhatsApp needs a Meta number, approved message templates and `WHATSAPP_*` variables. Paystack needs its keys.
+  Bank transfer needs neither, which is why the demo runs on it.
