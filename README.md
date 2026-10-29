@@ -1,20 +1,50 @@
-# Sowo
+<p align="center">
+  <img src="docs/images/sowo-logo.png" alt="Ṣòwò" width="340">
+</p>
 
-**Sowo dey sell while you sleep.**
+<h1 align="center">Ṣòwò</h1>
 
-An AI sales assistant for Nigerian vendors who sell on WhatsApp. When a buyer messages, Sowo replies instantly, checks stock, haggles down to the floor price the vendor set (the buyer never sees it), sends a Paystack payment link (or, if the vendor prefers, her own bank account number), confirms payment from Paystack's webhook (or from the vendor tapping Mark paid), and tells the vendor to pack the order. Buyers write in Pidgin and English.
+<p align="center">
+  <strong>Ṣòwò dey sell while you sleep.</strong>
+</p>
 
-Built for OSCA Ile-Ife's **OPEN//BUILD 2026** hackathon on the open-weight **Qwen3** model. MIT licensed.
+<p align="center">
+  <a href="https://github.com/adeyanjufuhad/sowo/actions/workflows/ci.yml"><img alt="CI passing" src="https://github.com/adeyanjufuhad/sowo/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="LICENSE"><img alt="MIT licence" src="https://img.shields.io/badge/licence-MIT-2ea44f.svg"></a>
+  <a href="https://web-one-mu-94.vercel.app"><img alt="Live demo" src="https://img.shields.io/badge/live%20demo-online-e4572e.svg"></a>
+  <img alt="Python 3.12" src="https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white">
+  <img alt="TypeScript 5" src="https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white">
+  <img alt="Next.js 16" src="https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs&logoColor=white">
+  <img alt="FastAPI" src="https://img.shields.io/badge/FastAPI-0.115-009688?logo=fastapi&logoColor=white">
+  <img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-17-4169E1?logo=postgresql&logoColor=white">
+  <img alt="Qwen3" src="https://img.shields.io/badge/model-Qwen3-615CED">
+  <img alt="WhatsApp Cloud API" src="https://img.shields.io/badge/WhatsApp-Cloud%20API-25D366?logo=whatsapp&logoColor=white">
+</p>
+
+An AI sales assistant for Nigerian vendors who sell on WhatsApp. When a buyer messages, Ṣòwò replies instantly, checks stock, haggles down to the floor price the vendor set (the buyer never sees it), sends a Paystack payment link (or, if the vendor prefers, her own bank account number), confirms payment from Paystack's webhook (or from the vendor tapping Mark paid), and tells the vendor to pack the order. Buyers write in Pidgin and English.
+
+Built for OSCA Ile-Ife's **OPEN//BUILD 2026** hackathon on the open-weight **Qwen3** model. MIT licensed. *Ṣòwò* is Yoruba for *ṣe òwò* — to trade.
 
 > The rule the whole design hangs on: **the model only phrases replies and picks tools. The server decides every price, total and stock change.**
 
-[![CI](https://github.com/adeyanjufuhad/sowo/actions/workflows/ci.yml/badge.svg)](https://github.com/adeyanjufuhad/sowo/actions/workflows/ci.yml)
-
 ![Sowo landing page](docs/images/landing.jpg)
+
+## Stack
+
+| Layer | Built with | Language |
+| --- | --- | --- |
+| Web app (`apps/web`) | Next.js 16 (App Router), React 19, Tailwind CSS 4, Lucide, React Bits components | TypeScript, CSS |
+| API (`apps/api`) | FastAPI, SQLAlchemy 2, Pydantic, Alembic, Argon2 | Python 3.12 |
+| Data | PostgreSQL on Neon, one database per environment | SQL |
+| Model | Qwen3, open weights, through an OpenAI-compatible API (Groq) or Ollama locally | — |
+| Messaging | WhatsApp Cloud API (signed webhooks, test number for the demo) | — |
+| Payments | Paystack (signed webhook) and plain bank transfer with a vendor confirmation | — |
+| Tests and CI | pytest, Ruff, Vitest, ESLint, GitHub Actions | Python, TypeScript |
+| Hosting | Render (API), Vercel (web), Neon (data) — free tiers, nothing needs a card | — |
 
 ## Contents
 
-[Problem](#problem) · [Who it's for](#who-its-for) · [Demo](#demo) · [Quick start](#quick-start) · [Architecture](#architecture) · [Model](#model-qwen3) · [Tests](#tests) · [Acknowledgements](#acknowledgements) · [Team](#team) · [Licence](#licence)
+[Stack](#stack) · [Problem](#problem) · [Who it's for](#who-its-for) · [Demo](#demo) · [Quick start](#quick-start) · [Architecture](#architecture) · [Model](#model-qwen3) · [Tests](#tests) · [Acknowledgements](#acknowledgements) · [Team](#team) · [Licence](#licence)
 
 ## Problem
 
