@@ -160,6 +160,15 @@ this is setting, not code.
    dashboard, but the buyer never receives it. Generate a fresh permanent token (step 3) and update
    `WHATSAPP_ACCESS_TOKEN`.
 
+   A 200 followed by `WhatsApp accepted a reply for …` and then `WhatsApp delivery to … failed: 131031: Business
+   Account locked` is Meta refusing to carry the message: the WhatsApp Business Account is restricted until the
+   business is verified. WhatsApp Manager → Overview says *Account Restricted — you will need to verify your
+   business*. The fix is Business settings → Security Center → Business Verification → **Start verification**, which
+   wants the business's legal details and documents and takes as long as Meta takes; a fresh account rarely clears
+   it the same evening. Until it does, buyers' messages still arrive, Sowo still answers and the chat still appears
+   in the dashboard — only Meta's last hop to the buyer's phone is blocked. Plan the demo on `/try` and the
+   dashboard, not on the reply landing in someone's WhatsApp.
+
 To check the wiring without spending model quota, set `WHATSAPP_ECHO_MODE=true` on Render: the API then answers
 `Echo: <what the buyer typed>` and never calls the model. Turn it off afterwards.
 
