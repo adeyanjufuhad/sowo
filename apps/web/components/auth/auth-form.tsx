@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useId, useState, type FormEvent } from "react";
+import { Eye, EyeOff } from "lucide-react";
 import { Logo } from "@/components/landing/logo";
 import { api, ApiRequestError, USING_MOCK } from "@/lib/api";
 import { safeNext } from "@/lib/safe-next";
@@ -18,6 +19,7 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
   const [businessName, setBusinessName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [passwordVisible, setPasswordVisible] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const signup = mode === "signup";
@@ -98,17 +100,28 @@ export function AuthForm({ mode }: { mode: "login" | "signup" }) {
                 <label htmlFor={ids.password} className="mb-1.5 block text-sm font-medium">
                   Password
                 </label>
-                <input
-                  id={ids.password}
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  autoComplete={signup ? "new-password" : "current-password"}
-                  required
-                  minLength={signup ? 10 : undefined}
-                  maxLength={128}
-                  className={field}
-                />
+                <div className="relative">
+                  <input
+                    id={ids.password}
+                    type={passwordVisible ? "text" : "password"}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    autoComplete={signup ? "new-password" : "current-password"}
+                    required
+                    minLength={signup ? 10 : undefined}
+                    maxLength={128}
+                    className={`${field} pr-12`}
+                  />
+                  <button
+                    type="button"
+                    aria-label={passwordVisible ? "Hide password" : "Show password"}
+                    aria-controls={ids.password}
+                    onClick={() => setPasswordVisible((visible) => !visible)}
+                    className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-xl text-muted transition-colors hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent-strong"
+                  >
+                    {passwordVisible ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
+                  </button>
+                </div>
                 {signup ? <p className="mt-1.5 text-xs text-muted">At least 10 characters.</p> : null}
               </div>
 
