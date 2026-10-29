@@ -1,5 +1,6 @@
 import { Clay, type ClayName } from "./clay";
 import { Reveal } from "./reveal";
+import { ScrollFloat } from "./scroll-float";
 
 const STEPS: { pose: ClayName; title: string; body: string }[] = [
   {
@@ -30,12 +31,12 @@ export function HowItWorks() {
       <div className="mx-auto max-w-6xl">
         <Reveal className="mx-auto max-w-2xl text-center">
           <p className="text-sm font-medium text-accent-strong">How it works</p>
-          <h2
+          <ScrollFloat
             id="how-title"
+            text="From “how much?” to “pack am”, without you typing a word."
+            delay={120}
             className="mt-3 font-display text-4xl leading-[1.02] font-semibold tracking-[-0.04em] text-balance sm:text-5xl"
-          >
-            From &ldquo;how much?&rdquo; to &ldquo;pack am&rdquo;, without you typing a word.
-          </h2>
+          />
         </Reveal>
 
         <ol className="mt-12 grid grid-cols-2 gap-x-4 gap-y-10 sm:mt-16 sm:gap-x-6 sm:gap-y-12 lg:grid-cols-4">

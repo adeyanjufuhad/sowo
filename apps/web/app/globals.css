@@ -191,6 +191,37 @@ a {
   animation: dashboard-panel 0.35s var(--ease-smooth) both;
 }
 
+/* StarBorder: the glow that laps the top and bottom rim of the main calls to action. */
+@keyframes star-movement-bottom {
+  0% {
+    transform: translate(0%, 0%);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-100%, 0%);
+    opacity: 0;
+  }
+}
+
+@keyframes star-movement-top {
+  0% {
+    transform: translate(0%, 0%);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(100%, 0%);
+    opacity: 0;
+  }
+}
+
+.star-border-bottom {
+  animation: star-movement-bottom var(--star-speed, 6s) linear infinite alternate;
+}
+
+.star-border-top {
+  animation: star-movement-top var(--star-speed, 6s) linear infinite alternate;
+}
+
 @media (prefers-reduced-motion: reduce) {
   html {
     scroll-behavior: auto;

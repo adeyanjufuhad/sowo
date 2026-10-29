@@ -1,5 +1,6 @@
 import { Clock3, Repeat2, ShieldAlert } from "lucide-react";
 import { Reveal } from "./reveal";
+import { ScrollFloat } from "./scroll-float";
 
 const PAINS = [
   {
@@ -25,12 +26,12 @@ export function Problem() {
       <div className="mx-auto grid max-w-6xl gap-12 md:grid-cols-[1.15fr_1fr] md:gap-20">
         <Reveal className="md:sticky md:top-28 md:self-start">
           <p className="text-sm font-medium text-accent-strong">The problem</p>
-          <h2
+          <ScrollFloat
             id="problem-title"
+            text="Selling on WhatsApp means never putting the phone down."
+            delay={120}
             className="mt-3 font-display text-4xl leading-[1.02] font-semibold tracking-[-0.04em] text-balance sm:text-[56px]"
-          >
-            Selling on WhatsApp means never putting the phone down.
-          </h2>
+          />
           <p className="mt-6 max-w-[50ch] text-base leading-relaxed text-ink-soft sm:text-lg">
             Across Nigeria, vendors run whole shops from a chat app. Every sale is typed by hand: answer the price,
             haggle, share account details, wait for the alert, confirm the address. Step away for an hour and the buyer
