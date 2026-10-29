@@ -304,13 +304,13 @@ Every push and pull request also runs these checks in GitHub Actions ([`.github/
 
 ### Libraries
 
-**Web:** [Next.js](https://nextjs.org) and [React](https://react.dev) (MIT), [Tailwind CSS](https://tailwindcss.com) (MIT), [Lucide](https://lucide.dev) icons (ISC), [class-variance-authority](https://cva.style) (Apache-2.0), [clsx](https://github.com/lukeed/clsx) and [tailwind-merge](https://github.com/dcastil/tailwind-merge) (MIT), the pattern behind [shadcn/ui](https://ui.shadcn.com), whose CLI added the React Bits component, [Vitest](https://vitest.dev) (MIT), [TypeScript](https://www.typescriptlang.org) (Apache-2.0) and [ESLint](https://eslint.org) (MIT).
+**Web:** [Next.js](https://nextjs.org) and [React](https://react.dev) (MIT), [Tailwind CSS](https://tailwindcss.com) (MIT), [Lucide](https://lucide.dev) icons (ISC), [class-variance-authority](https://cva.style) (Apache-2.0), [clsx](https://github.com/lukeed/clsx) and [tailwind-merge](https://github.com/dcastil/tailwind-merge) (MIT), the pattern behind [shadcn/ui](https://ui.shadcn.com), whose CLI added the React Bits components, [Vitest](https://vitest.dev) (MIT), [TypeScript](https://www.typescriptlang.org) (Apache-2.0) and [ESLint](https://eslint.org) (MIT).
 
 **Fonts:** Geist, Geist Mono and Bricolage Grotesque, all under the SIL Open Font License, served through `next/font`.
 
 **Backend:** [FastAPI](https://fastapi.tiangolo.com), [SQLAlchemy](https://www.sqlalchemy.org), [Pydantic](https://docs.pydantic.dev), [Uvicorn](https://www.uvicorn.org) and [httpx](https://www.python-httpx.org), with [pytest](https://pytest.org) and [Ruff](https://docs.astral.sh/ruff/) for checks.
 
-**Third-party code in this repo:** `apps/web/components/LogoLoop.tsx` is a [React Bits](https://reactbits.dev) component, added through the shadcn registry. React Bits is released under *MIT + Commons Clause*, which allows use inside an application like this one but not reselling or redistributing the components on their own. That file keeps its own licence; the rest of the repository is MIT.
+**Third-party code in this repo:** `apps/web/components/LogoLoop.tsx`, `ShinyText.tsx` and `SpotlightCard.tsx` are [React Bits](https://reactbits.dev) components, added through the shadcn registry. React Bits is released under *MIT + Commons Clause*, which allows use inside an application like this one but not reselling or redistributing the components on their own. Those files keep their own licence; the rest of the repository is MIT, including the landing page's motion components, which are this repo's own implementations of React Bits patterns.
 
 ### Model and services
 
