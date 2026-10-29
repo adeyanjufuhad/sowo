@@ -2,6 +2,7 @@ import type { Message } from "@sowo/shared";
 import { Bot, Server } from "lucide-react";
 import { ChatReplay } from "./chat-replay";
 import { Reveal } from "./reveal";
+import { ScrollFloat } from "./scroll-float";
 
 export function ReplaySection({ messages }: { messages: Message[] }) {
   return (
@@ -9,12 +10,12 @@ export function ReplaySection({ messages }: { messages: Message[] }) {
       <div className="mx-auto grid max-w-6xl items-start gap-12 lg:grid-cols-[0.9fr_1.1fr] lg:gap-16">
         <Reveal className="lg:sticky lg:top-28">
           <p className="text-sm font-medium text-accent-strong">A real sale, replayed</p>
-          <h2
+          <ScrollFloat
             id="replay-title"
+            text="Watch Sowo sell a pair of loafers."
+            delay={120}
             className="mt-3 font-display text-4xl leading-[1.02] font-semibold tracking-[-0.04em] text-balance sm:text-5xl"
-          >
-            Watch Sowo sell a pair of loafers.
-          </h2>
+          />
           <p className="mt-6 max-w-[48ch] text-base leading-relaxed text-ink-soft sm:text-lg">
             Kelechi wants black leather loafers in size 43. He offers ₦35,000, Sowo counters, they settle on ₦41,000,
             and the ₦43,500 payment clears with delivery to Ikeja.

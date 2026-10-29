@@ -1,3 +1,4 @@
+import { ClickSpark } from "@/components/landing/click-spark";
 import { ClosingCta } from "@/components/landing/closing-cta";
 import { Features } from "@/components/landing/features";
 import { Hero } from "@/components/landing/hero";
@@ -17,6 +18,7 @@ export default function Home() {
 
   return (
     <>
+      <ClickSpark />
       <SiteHeader />
       <main id="main">
         <Hero />

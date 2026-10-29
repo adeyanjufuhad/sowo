@@ -1,5 +1,6 @@
 import { EngineIllustration } from "./engine-illustration";
 import { Reveal } from "./reveal";
+import { ScrollFloat } from "./scroll-float";
 
 export function EngineSection() {
   return (
@@ -8,12 +9,12 @@ export function EngineSection() {
         <Reveal className="grid gap-6 md:grid-cols-[1.1fr_1fr] md:items-end">
           <div>
             <p className="text-sm font-medium text-accent-strong">Under the hood</p>
-            <h2
+            <ScrollFloat
               id="engine-title"
+              text="Every message runs through the same rules."
+              delay={120}
               className="mt-3 font-display text-4xl leading-[1.02] font-semibold tracking-[-0.04em] text-balance sm:text-5xl"
-            >
-              Every message runs through the same rules.
-            </h2>
+            />
           </div>
           <div>
             <p className="max-w-[48ch] text-base leading-relaxed text-ink-soft">

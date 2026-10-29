@@ -1,5 +1,7 @@
 import { BadgeCheck, Code2, EyeOff, Hand } from "lucide-react";
+import SpotlightCard from "@/components/SpotlightCard";
 import { Reveal } from "./reveal";
+import { ScrollFloat } from "./scroll-float";
 
 const PILLARS = [
   {
@@ -29,20 +31,35 @@ const BADGES = ["Qwen3", "WhatsApp Cloud API", "Bank transfer", "Paystack", "MIT
 export function Trust() {
   return (
     <section id="trust" aria-labelledby="trust-title" className="scroll-mt-20 px-4 pb-24 sm:px-6 sm:pb-32">
-      <div className="mx-auto max-w-6xl rounded-[2.5rem] bg-card px-6 py-16 ring-1 ring-line sm:px-12 sm:py-20">
+      <SpotlightCard
+        theme="light"
+        spotlightColor="#e4572e"
+        intensity={0.5}
+        spotlightSize={520}
+        softness={0.9}
+        borderGlow={0.5}
+        proximity={220}
+        smoothing={0.5}
+        ambient
+        grain={0.06}
+        className="mx-auto max-w-6xl rounded-[2.5rem] px-6 py-16 sm:px-12 sm:py-20"
+      >
         <Reveal className="mx-auto max-w-2xl text-center">
           <p className="text-sm font-medium text-accent-strong">Trust and control</p>
-          <h2
+          <ScrollFloat
             id="trust-title"
+            text="Sowo sells. You stay in charge."
+            delay={120}
             className="mt-3 font-display text-4xl leading-[1.02] font-semibold tracking-[-0.04em] text-balance sm:text-5xl"
-          >
-            Sowo sells. You stay in charge.
-          </h2>
+          />
         </Reveal>
 
         <ul className="mt-10 flex flex-wrap justify-center gap-2" aria-label="What Sowo runs on">
           {BADGES.map((badge) => (
-            <li key={badge} className="rounded-full bg-paper px-3.5 py-1.5 font-mono text-xs text-ink-soft ring-1 ring-line">
+            <li
+              key={badge}
+              className="rounded-full bg-paper px-3.5 py-1.5 font-mono text-xs text-ink-soft ring-1 ring-line"
+            >
               {badge}
             </li>
           ))}
@@ -59,7 +76,7 @@ export function Trust() {
             </Reveal>
           ))}
         </div>
-      </div>
+      </SpotlightCard>
     </section>
   );
 }

@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { LanguageRotator } from "./language-rotator";
 import { Reveal } from "./reveal";
+import { ScrollFloat } from "./scroll-float";
 
 function Tile({
   title,
@@ -120,12 +121,12 @@ export function Features() {
       <div className="mx-auto max-w-6xl">
         <Reveal className="max-w-2xl">
           <p className="text-sm font-medium text-accent-strong">Features</p>
-          <h2
+          <ScrollFloat
             id="features-title"
+            text="Made for how people actually buy here."
+            delay={120}
             className="mt-3 font-display text-4xl leading-[1.02] font-semibold tracking-[-0.04em] text-balance sm:text-5xl"
-          >
-            Made for how people actually buy here.
-          </h2>
+          />
         </Reveal>
 
         <div className="mt-14 grid gap-x-6 gap-y-12 md:grid-cols-5">

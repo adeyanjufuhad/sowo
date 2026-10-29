@@ -2,6 +2,7 @@ import { ArrowRight, Store } from "lucide-react";
 import { ButtonLink } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Clay, type ClayName } from "./clay";
+import { StarBorder } from "./star-border";
 
 const HEADLINE = "Ṣòwò dey sell while you sleep.";
 
@@ -70,9 +71,11 @@ export function Hero() {
             floor price you set, follows the order through payment and tells you what to pack.
           </p>
           <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <ButtonLink href="/signup" size="lg" icon={<ArrowRight className="size-4" strokeWidth={2} />}>
-              Start selling
-            </ButtonLink>
+            <StarBorder speed={5}>
+              <ButtonLink href="/signup" size="lg" icon={<ArrowRight className="size-4" strokeWidth={2} />}>
+                Start selling
+              </ButtonLink>
+            </StarBorder>
             <ButtonLink
               href="/try"
               variant="secondary"

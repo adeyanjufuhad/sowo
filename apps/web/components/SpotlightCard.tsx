@@ -78,7 +78,7 @@ const falloff = (color: string, softness: number) => {
 };
 
 const CARD =
-  'relative isolate overflow-hidden rounded-3xl p-8 [background-color:var(--spotlight-card-surface)] [box-shadow:var(--spotlight-card-shadow)]';
+  'relative isolate overflow-hidden [background-color:var(--spotlight-card-surface)] [box-shadow:var(--spotlight-card-shadow)]';
 
 const SpotlightCard = ({
   children,
