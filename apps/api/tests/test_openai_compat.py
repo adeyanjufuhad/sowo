@@ -289,3 +289,37 @@ def test_a_400_that_holds_no_readable_call_is_still_an_error_with_the_hosts_reas
         client_with(lambda _: tool_use_failed("nothing useful")).chat([], None)
     with pytest.raises(ModelError, match="invalid model"):
         client_with(lambda _: httpx.Response(400, json={"error": {"message": "invalid model"}})).chat([], None)
+
+
+def rejected_call(name: str, tools: list[dict]) -> list:
+    """A call the host turned down, replayed through the client so its own text is read back."""
+    generation = (
+        "</tool_call>" + chr(10) + "<function=" + name + ">" + chr(10)
+        + "<parameter=sku>" + chr(10) + "LOAF-BLK-14" + chr(10) + "</parameter>" + chr(10)
+        + "<parameter=offer_naira>" + chr(10) + "35000" + chr(10) + "</parameter>" + chr(10)
+        + "</function>" + chr(10) + "</tool_call>"
+    )
+    return parse_tool_calls(client_with(lambda _: tool_use_failed(generation)).chat([], tools))
+
+
+def test_a_tool_name_the_model_wrote_with_junk_in_it_still_runs() -> None:
+    # What Groq actually returned on 2026-10-29 when Qwen haggled: the arguments were fine, the name was not.
+    tools = [{"function": {"name": "evaluate_offer"}}]
+    for written in ("evaluate$$$$$offer", "evaluate Offering"):
+        call = rejected_call(written, tools)[0]
+        assert (call.name, call.arguments) == ("evaluate_offer", {"sku": "LOAF-BLK-14", "offer_naira": 35000})
+
+
+def test_a_tool_name_cut_short_still_resolves_when_only_one_tool_starts_with_it() -> None:
+    call = rejected_call("evaluate", [{"function": {"name": "evaluate_offer"}}])[0]
+    assert call.name == "evaluate_offer"
+
+
+def test_a_tool_name_that_could_be_two_tools_is_left_for_the_agent_to_reject() -> None:
+    tools = [{"function": {"name": "evaluate_offer"}}, {"function": {"name": "escalate_to_vendor"}}]
+    assert [call.name for call in rejected_call("e", tools)] == ["e"]
+
+
+def test_a_tool_name_with_nothing_like_it_in_the_request_is_left_alone() -> None:
+    call = rejected_call("sell_shoes", [{"function": {"name": "evaluate_offer"}}])[0]
+    assert call.name == "sell_shoes"
