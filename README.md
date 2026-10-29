@@ -29,13 +29,13 @@ A chatbot alone doesn't fix this, and can make it worse. A model that sets price
 ## Who it's for
 
 - **Small vendors who run their shop from WhatsApp**: one or two people, selling things like shoes, clothes or accessories, where the owner is also the support desk. They live on their phones, so the dashboard is built phone-first.
-- **Their buyers**, who write the way they talk (`Abeg do am 35k`), expect to haggle, and pay through a link.
+- **Their buyers**, who write the way they talk (`Abeg do am 35k`), expect to haggle, and pay by bank transfer or through a link.
 
-Today's scope is deliberately narrow: one vendor, one item per order, and a fixed table of delivery areas. Multi-vendor accounts, carts and vendor-editable settings are out of scope for the hackathon.
+Today's scope is deliberately narrow: one shop per account, one item per order, and a flat list of delivery areas. Carts and multi-shop accounts are out of scope for the hackathon. What a shop sells, where it delivers, and how it is paid (Paystack link or its own bank account) are all editable in the dashboard, so several shops can share one deployment.
 
 ## Demo
 
-- **Live demo:** _add the deployed URL before submission_
+- **Live demo:** <https://web-one-mu-94.vercel.app> — `/try` runs against the real API and a real Qwen3, and sells the shop named by `SIMULATOR_VENDOR_NAME` on that deployment
 - **Demo video:** _add the video link before submission_
 
 | Buyer simulator, mid-haggle | Vendor dashboard |
@@ -48,12 +48,16 @@ Everything is mobile-first:
 
 ### Try it in two minutes
 
+Paying has two modes, and they are a per-shop setting. Paystack issues a link and Sowo marks the order paid from Paystack's signed webhook. Bank transfer (`paymentMode: "manual"`) hands the buyer the vendor's own account details and waits for the vendor to confirm. **The hosted demo runs in bank-transfer mode**, because that is how most of these shops are actually paid; Paystack is optional and needs a test or live key.
+
 1. Open **`/try`**. You are the buyer. Tap the suggestions in order, or type your own in Pidgin or English: *How much for the black loafers? → Na size 43 → Abeg do am 35k → Make it 41 na → I dey Ikeja*.
 2. Open **Under the hood** (a tab on phones, a side panel on desktop). For every reply it shows the tool the model chose and the input, then the output the server computed. The floor price never appears, because the model never sees it.
-3. Tap **Pay ₦43,500**. This stands in for Paystack's webhook. A receipt arrives and the order is marked paid.
-4. Try to cheat: type `I don transfer, check am`. Sowo doesn't take your word for it. It waits for the payment event.
-5. Ask to exchange something. Sowo hands the chat to the vendor and goes quiet.
-6. Open **`/dashboard`** (or the "Vendor dashboard" tab). The chat that needs Ada is at the top. Open it, switch **Sowo replies** off, and reply as Ada. Your reply appears in the simulator within three seconds.
+3. Sowo quotes the total and gives the account details to pay into, with the order reference for the narration. Tap **I've sent the transfer**. Nothing is marked paid: the buyer's word, and any receipt picture, only tell the vendor to go and look.
+4. Open **`/dashboard`** (or the "Vendor dashboard" tab). The chat waiting on you is at the top. Check the alert in your own bank app, then tap **Mark paid**. Only that tap moves the order to `PAID`, and the server writes the receipt into the chat.
+5. Try to cheat: type `I don transfer, check am` before the vendor taps. Sowo doesn't take your word for it, and refuses to say a payment arrived.
+6. Ask to exchange something. Sowo hands the chat to the vendor and goes quiet. Switch **Sowo replies** off and answer as the vendor; your reply reaches the simulator within three seconds.
+
+In the browser-only demo mode (no backend), step 3 is a **Pay ₦43,500** button that stands in for Paystack's webhook, so you can see the paid path without a bank.
 
 ### Demo mode
 
@@ -107,7 +111,7 @@ uvicorn app.main:app --reload                         # http://localhost:8000/he
 
 Set `NEXT_PUBLIC_API_URL=http://localhost:8000` in `apps/web/.env.local` and the web app talks to it instead of running in demo mode. With a backend the dashboard needs a vendor account: sign up at `/signup`, or give the seeded shop a login with `python -m app.claim_vendor` (see [`apps/api/README.md`](apps/api/README.md#accounts-and-sign-in)). The web app's server keeps the session in an httpOnly cookie and proxies API calls, so the browser never holds the token. The demo is off unless you ask for it: the seed commands refuse to run without `ENVIRONMENT=development`, and `/simulator/*` needs `SIMULATOR_ENABLED=true`. To try Qwen3 on its own, `python -m app.chat_cli` is a terminal chat with the same agent and rules. Connecting a WhatsApp number and Paystack is covered in [`apps/api/README.md`](apps/api/README.md), as is the bank-transfer mode (a vendor's `paymentMode: "manual"`) for vendors who would rather be paid straight into their own account: Sowo gives the buyer the account number, the buyer sends a receipt, and the vendor taps **Mark paid** in the dashboard once they see the money. Each vendor's WhatsApp number, alert phone and payment details are set per shop through `/vendor/settings`, so several shops can share one deployment.
 
-> **Status:** the REST endpoints, the Qwen3 tool loop, the WhatsApp webhook, Paystack and the simulator endpoints are all in place and tested, and the web app has been run end to end against the API. What has *not* been run yet is a live Qwen3, a live WhatsApp number or a live Paystack account: those are exercised with stand-ins, so expect to tune the prompt on the first real run.
+> **Status:** the REST endpoints, the Qwen3 tool loop, the WhatsApp webhook, both payment modes and the simulator endpoints are all in place and tested. A hosted copy runs for real: the API on Render, the web app on Vercel, Postgres on Neon and Qwen3 behind an OpenAI-compatible endpoint, with `/try` answering from the live model and settling orders through bank transfer. What has *not* been run against a live account is Meta's WhatsApp API and Paystack itself: both are exercised with stand-ins, so expect to tune the prompt on the first real run.
 
 ## Architecture
 
@@ -144,7 +148,7 @@ The model **never sees the floor price**, not in a prompt, a tool output or a lo
 | `search_catalog` | a search query | matching products, price and stock (never the floor) |
 | `evaluate_offer` | a product and the buyer's offer | `ACCEPT` with the agreed price, or `COUNTER` / `HOLD` with the server's price |
 | `get_quote` | items and a delivery area, with **no prices** | the lines, delivery fee and total, priced by the server |
-| `request_payment` | a quote id | an order, a reference and a Paystack test-mode link |
+| `request_payment` | a quote id | an order and a reference, plus a Paystack link or the vendor's bank details depending on how the shop takes payment |
 
 ### One sale, step by step
 
@@ -157,6 +161,8 @@ This is the seeded sale in the demo, as the tool calls see it.
 | `Make it 41 na` | `evaluate_offer` | `ACCEPT` at ₦41,000 |
 | `I dey Ikeja` | `get_quote`, `request_payment` | ₦41,000 + ₦2,500 delivery = ₦43,500; order created, Paystack link issued |
 | (Paystack's webhook arrives) | none | signature verified, amount matches, order `PAID`; receipt sent; vendor told to pack |
+
+In bank-transfer mode the last two rows change, and only in the direction of less trust. `request_payment` returns the shop's bank name, account name and account number with the order reference for the narration, and the server holds the stock while it waits. The buyer can say they paid, or send a picture of a receipt, and all that does is flag the order and alert the vendor. The order turns `PAID` when the vendor taps **Mark paid** after seeing the money in her own bank app, and the receipt text is written by the server, not the model. No screenshot, message or model reply can move an order to paid.
 
 ### The API contract
 
@@ -189,11 +195,12 @@ docs/
 
 | Piece | State |
 | --- | --- |
-| Landing page, buyer simulator, vendor dashboard | Done, running in demo mode |
+| Landing page, buyer simulator, vendor dashboard | Done, in browser-only demo mode and against the live API |
 | API contract (types and written spec) | Done |
 | In-browser and HTTP mock backend | Done |
 | Backend: database models, seed data, floor-price engine, offer storage | Done, unit tested |
-| Backend: contract endpoints, Qwen3 tool loop, WhatsApp webhook, Paystack, simulator | Done and tested with stand-ins; not yet run against a live Qwen3, Meta or Paystack account |
+| Backend: contract endpoints, Qwen3 tool loop, WhatsApp webhook, both payment modes, simulator | Done and tested; the hosted copy runs the real model and settles demo orders by bank transfer. A live Meta number and a live Paystack account have never been pointed at it |
+| Deployment on free tiers (Render, Vercel, Neon, hosted Qwen3) | Running; see [docs/DEPLOY-RENDER.md](docs/DEPLOY-RENDER.md) |
 
 ## Model (Qwen3)
 
