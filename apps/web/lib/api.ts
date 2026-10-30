@@ -21,6 +21,7 @@ import {
   type VendorSettingsUpdate,
 } from "@sowo/shared";
 import { ApiRequestError } from "./api-error";
+import { shouldRedirectToLogin } from "./auth-redirect";
 import { resetLocalMock, runLocal } from "./mock/local";
 import {
   listConversations,
@@ -54,7 +55,11 @@ async function call<E extends Endpoint<unknown, unknown>>(
     cache: "no-store",
   });
 
-  if (response.status === 401 && !endpoint.path.startsWith("/auth/") && typeof window !== "undefined") {
+  if (
+    response.status === 401 &&
+    typeof window !== "undefined" &&
+    shouldRedirectToLogin(endpoint.path, window.location.pathname)
+  ) {
     // The session ended (or never existed): go and sign in, then come back here.
     const here = window.location.pathname + window.location.search;
     // A full navigation on purpose: it drops whatever the signed-out page was holding in memory.
