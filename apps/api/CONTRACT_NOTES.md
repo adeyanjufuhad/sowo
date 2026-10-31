@@ -72,3 +72,9 @@ New tables: `quotes` (a priced basket the model was shown; `request_payment` tur
 - **`imageUrl`** on `POST`/`PATCH /products` accepts an uploaded picture of the vendor's own (another vendor's is a `400`) or, as before, an `http(s)://` address. A picture no product uses any more is deleted when its product changes picture or is deleted.
 - **`Product.category`** (string or `null`, at most 64 characters) is new on `GET /products` and accepted by `POST`/`PATCH /products` (`null` clears it). The assistant's `search_catalog` searches it (so "shoes" finds the vendor's "Shoes" category, and a trailing "s" is forgiven) and returns it per result; the system prompt lists the vendor's categories.
 - **Columns.** New table `product_images` (migration `0005`); `products.category` (migration `0006`).
+
+### Shop name
+
+- **`PATCH /vendor/settings`** accepts `businessName` (at most 120 characters, spaces collapsed). Blank or `null` is a `400`; another shop's name is a `409`. `GET /vendor/settings` and `GET /auth/me` return the new name. Shared type: `VendorSettingsUpdate.businessName`.
+- **New:** `GET /simulator/shop` (no sign-in; `404` when the simulator is off, `409` if the demo shop doesn't exist) returns `{ businessName, ownerName }`, where `ownerName` falls back to the business name as the assistant's does. The /try page shows these instead of a fixed "Ada's Footwear". Shared type `SimulatorShop`; endpoint `getSimulatorShop`.
+- **The demo shop is remembered.** `SIMULATOR_VENDOR_NAME` finds the shop by name the first time and stores that setting on it (`vendors.simulator_key`, unique, migration `0007`). After that the shop can rename itself and /try keeps talking to it, and a new shop signing up with the old name doesn't take the demo over. Changing `SIMULATOR_VENDOR_NAME` to another existing shop's name moves the demo there.

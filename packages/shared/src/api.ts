@@ -306,6 +306,13 @@ export interface SimulatorMessageResponse {
   messages: Message[];
 }
 
+/** Who the /try buyer is talking to. No sign-in needed. */
+export interface SimulatorShop {
+  businessName: string;
+  /** What Sowo calls the owner; the business name when the shop hasn't set one. */
+  ownerName: string;
+}
+
 export interface SimulatorPaymentRequest {
   reference: string;
   outcome: "SUCCESS" | "FAILED";
@@ -381,6 +388,8 @@ export interface VendorSettings {
 
 /** Send only what changes. null or "" clears an optional setting. */
 export interface VendorSettingsUpdate {
+  /** The shop's name, shown to buyers and on the dashboard. Can't be blank or another shop's. */
+  businessName?: string;
   ownerName?: string | null;
   whatsappPhoneNumberId?: string | null;
   alertPhone?: string | null;
@@ -454,6 +463,8 @@ export const endpoints = {
   /** Responds 204 with no body. */
   deleteDeliveryZone: (id: string) =>
     endpoint<void, void>("DELETE", `/delivery-zones/${enc(id)}`),
+  /** No sign-in. */
+  getSimulatorShop: () => endpoint<void, SimulatorShop>("GET", "/simulator/shop"),
   sendSimulatorMessage: () =>
     endpoint<SimulatorMessageRequest, SimulatorMessageResponse>(
       "POST",

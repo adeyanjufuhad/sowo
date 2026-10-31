@@ -6,6 +6,9 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { api, USING_MOCK } from "@/lib/api";
 
+/** Settings sends this when the shop's name changes, so the bar doesn't show the old one until a reload. */
+export const SHOP_RENAMED_EVENT = "sowo:shop-renamed";
+
 /** Who is signed in, with a way out. Shown only when the dashboard is talking to a real backend. */
 export function AccountBar() {
   const [name, setName] = useState<string | null>(null);
@@ -18,6 +21,9 @@ export function AccountBar() {
       .me()
       .then((res) => setName(res.vendor.name))
       .catch(() => undefined); // a 401 sends the page to the sign-in screen by itself
+    const renamed = (event: Event) => setName((event as CustomEvent<string>).detail);
+    window.addEventListener(SHOP_RENAMED_EVENT, renamed);
+    return () => window.removeEventListener(SHOP_RENAMED_EVENT, renamed);
   }, []);
 
   if (USING_MOCK) return null;

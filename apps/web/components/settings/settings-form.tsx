@@ -3,12 +3,14 @@
 import type { PaymentMode, VendorSettings } from "@sowo/shared";
 import Link from "next/link";
 import { useEffect, useId, useState, type FormEvent } from "react";
+import { SHOP_RENAMED_EVENT } from "@/components/auth/account-bar";
 import { api, ApiRequestError, USING_MOCK } from "@/lib/api";
 
 const field =
   "h-11 w-full rounded-xl bg-paper px-3.5 text-base ring-1 ring-line outline-none placeholder:text-muted focus-visible:ring-2 focus-visible:ring-accent-strong";
 
 interface Draft {
+  businessName: string;
   ownerName: string;
   whatsappPhoneNumberId: string;
   alertPhone: string;
@@ -20,6 +22,7 @@ interface Draft {
 
 function toDraft(settings: VendorSettings): Draft {
   return {
+    businessName: settings.businessName,
     ownerName: settings.ownerName ?? "",
     whatsappPhoneNumberId: settings.whatsappPhoneNumberId ?? "",
     alertPhone: settings.alertPhone ?? "",
@@ -55,6 +58,7 @@ function Field({
 /** Where a vendor connects their WhatsApp number and says how buyers pay. Saved per shop by the API. */
 export function SettingsForm() {
   const ids = {
+    business: useId(),
     owner: useId(),
     number: useId(),
     alert: useId(),
@@ -107,6 +111,7 @@ export function SettingsForm() {
     try {
       const manual = draft.paymentMode === "manual";
       const next = await api.updateVendorSettings({
+        businessName: draft.businessName,
         ownerName: draft.ownerName,
         whatsappPhoneNumberId: draft.whatsappPhoneNumberId,
         alertPhone: draft.alertPhone,
@@ -115,6 +120,9 @@ export function SettingsForm() {
         bankAccountName: manual ? draft.bankAccountName : undefined,
         bankAccountNumber: manual ? draft.bankAccountNumber : undefined,
       });
+      if (next.businessName !== saved?.businessName) {
+        window.dispatchEvent(new CustomEvent(SHOP_RENAMED_EVENT, { detail: next.businessName }));
+      }
       setSaved(next);
       setDraft(toDraft(next));
       setDone(true);
@@ -149,6 +157,37 @@ export function SettingsForm() {
       </p>
 
       <form onSubmit={submit} className="mt-6 space-y-8">
+        <section aria-labelledby={`${ids.business}-title`} className="space-y-4 rounded-3xl bg-card p-5 ring-1 ring-line sm:p-6">
+          <h2 id={`${ids.business}-title`} className="text-base font-semibold">
+            Your shop
+          </h2>
+          <Field
+            id={ids.business}
+            label="Business name"
+            hint="Buyers see this in the chat, and it's the name on your dashboard."
+          >
+            <input
+              id={ids.business}
+              value={draft.businessName}
+              onChange={(e) => change("businessName", e.target.value)}
+              required
+              maxLength={120}
+              autoComplete="organization"
+              className={field}
+            />
+          </Field>
+          <Field id={ids.owner} label="Your name" hint="What Sowo calls you when it speaks to buyers. Leave blank to use your business name.">
+            <input
+              id={ids.owner}
+              value={draft.ownerName}
+              onChange={(e) => change("ownerName", e.target.value)}
+              autoComplete="given-name"
+              maxLength={80}
+              className={field}
+            />
+          </Field>
+        </section>
+
         <section aria-labelledby={`${ids.number}-title`} className="space-y-4 rounded-3xl bg-card p-5 ring-1 ring-line sm:p-6">
           <div>
             <h2 id={`${ids.number}-title`} className="text-base font-semibold">
@@ -185,16 +224,6 @@ export function SettingsForm() {
               onChange={(e) => change("alertPhone", e.target.value)}
               inputMode="tel"
               autoComplete="tel"
-              className={field}
-            />
-          </Field>
-          <Field id={ids.owner} label="Your name" hint="What Sowo calls you when it speaks to buyers. Leave blank to use your business name.">
-            <input
-              id={ids.owner}
-              value={draft.ownerName}
-              onChange={(e) => change("ownerName", e.target.value)}
-              autoComplete="given-name"
-              maxLength={80}
               className={field}
             />
           </Field>

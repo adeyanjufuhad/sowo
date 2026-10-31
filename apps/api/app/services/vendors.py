@@ -19,8 +19,20 @@ def vendor_for_number(session: Session, phone_number_id: str) -> Vendor | None:
 
 
 def demo_vendor(session: Session, settings: Settings) -> Vendor | None:
-    """The shop the unauthenticated simulator talks to. Only used when SIMULATOR_ENABLED is on."""
-    return session.scalar(select(Vendor).where(Vendor.name == settings.simulator_vendor_name))
+    """The shop the unauthenticated simulator talks to. Only used when SIMULATOR_ENABLED is on.
+
+    SIMULATOR_VENDOR_NAME finds it by name the first time; after that the shop is remembered under that setting, so
+    renaming it in its settings keeps /try working. Pointing the setting at another shop's name moves the demo there.
+    """
+    key = settings.simulator_vendor_name
+    remembered = session.scalar(select(Vendor).where(Vendor.simulator_key == key))
+    if remembered is not None:
+        return remembered
+    named = session.scalar(select(Vendor).where(Vendor.name == key))
+    if named is not None:
+        named.simulator_key = key
+        session.commit()
+    return named
 
 
 def owner_name(vendor: Vendor) -> str:

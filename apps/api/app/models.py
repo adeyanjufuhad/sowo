@@ -80,6 +80,9 @@ class Vendor(Base):
     bank_name: Mapped[str | None] = mapped_column(String(80))
     bank_account_name: Mapped[str | None] = mapped_column(String(120))
     bank_account_number: Mapped[str | None] = mapped_column(String(10))
+    # The SIMULATOR_VENDOR_NAME that first picked this shop for the /try demo. Remembering it means the shop can
+    # rename itself without the demo losing it, and nobody else can take the demo over by signing up as the old name.
+    simulator_key: Mapped[str | None] = mapped_column(String(120), unique=True)
     products: Mapped[list["Product"]] = relationship(back_populates="vendor")
     delivery_zones: Mapped[list["DeliveryZone"]] = relationship(back_populates="vendor")
 

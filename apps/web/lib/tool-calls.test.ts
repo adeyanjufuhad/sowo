@@ -21,7 +21,7 @@ describe("summarizeToolCall", () => {
         bank: { bankName: "GTBank", accountName: "Ada Okafor", accountNumber: "0123456789" },
       }),
     );
-    expect(summary.server).toBe("order SW-ABC123 · bank transfer to Ada · ₦43,500");
+    expect(summary.server).toBe("order SW-ABC123 · bank transfer to Ada Okafor · ₦43,500");
   });
 
   it("does not crash on a tool it does not know", () => {

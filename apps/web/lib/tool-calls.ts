@@ -42,7 +42,8 @@ export function summarizeToolCall(call: ToolCall): ToolCallSummary {
       };
     }
     case "request_payment": {
-      const how = call.output.method === "MANUAL" ? "bank transfer to Ada" : "Paystack link";
+      const account = call.output.bank?.accountName;
+      const how = call.output.method === "MANUAL" ? (account ? `bank transfer to ${account}` : "bank transfer") : "Paystack link";
       return {
         tool: call.tool,
         model: `pay quote ${call.input.quoteId}`,

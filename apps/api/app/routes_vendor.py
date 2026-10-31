@@ -62,6 +62,13 @@ def update_vendor_settings(
     payload: VendorSettingsUpdate, session: SessionDependency, vendor: CurrentVendor
 ) -> VendorSettingsResponse:
     sent = payload.model_fields_set
+    if "businessName" in sent:
+        name = _text(payload.businessName, "The business name", 120)
+        if name is None:
+            raise HTTPException(status_code=400, detail="The business name can't be empty")
+        if name != vendor.name and session.scalar(select(Vendor.id).where(Vendor.name == name, Vendor.id != vendor.id)):
+            raise HTTPException(status_code=409, detail="Another shop on Sowo already uses that name")
+        vendor.name = name
     if "ownerName" in sent:
         vendor.owner_name = _text(payload.ownerName, "The owner's name", 80)
     if "whatsappPhoneNumberId" in sent:
