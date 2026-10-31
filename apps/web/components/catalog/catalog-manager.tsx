@@ -1,13 +1,26 @@
 "use client";
 
+/* eslint-disable @next/next/no-img-element -- the vendor's own small, already-shrunk pictures */
 import { formatNaira, type DeliveryZone, type Product } from "@sowo/shared";
+import { ImageOff } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { api, ApiRequestError, USING_MOCK } from "@/lib/api";
+import { productImageSrc } from "@/lib/product-image";
 import { ProductForm } from "./product-form";
 import { ZonesEditor } from "./zones-editor";
 
-function ProductRow({ product, onChange }: { product: Product; onChange: () => void }) {
+/** Each category once, whatever the capitals, in the spelling the vendor used first. */
+function categoriesOf(products: Product[]): string[] {
+  const seen = new Map<string, string>();
+  for (const p of products) {
+    const name = p.category?.trim();
+    if (name && !seen.has(name.toLowerCase())) seen.set(name.toLowerCase(), name);
+  }
+  return [...seen.values()].sort((a, b) => a.localeCompare(b));
+}
+
+function ProductRow({ product, categories, onChange }: { product: Product; categories: string[]; onChange: () => void }) {
   const [editing, setEditing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -17,6 +30,7 @@ function ProductRow({ product, onChange }: { product: Product; onChange: () => v
       <li className="py-3">
         <ProductForm
           product={product}
+          categories={categories}
           onCancel={() => setEditing(false)}
           onSave={async (input) => {
             await api.updateProduct(product.id, input);
@@ -41,12 +55,25 @@ function ProductRow({ product, onChange }: { product: Product; onChange: () => v
     }
   }
 
+  const picture = productImageSrc(product.imageUrl);
   return (
     <li className="py-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="min-w-0">
-          <p className="truncate font-medium">{product.name}</p>
-          <p className="font-mono text-xs text-muted">{product.sku}</p>
+        <div className="flex min-w-0 items-center gap-3">
+          {picture ? (
+            <img src={picture} alt="" width={44} height={44} className="size-11 shrink-0 rounded-lg object-cover ring-1 ring-line" />
+          ) : (
+            <span aria-hidden className="grid size-11 shrink-0 place-items-center rounded-lg bg-paper text-muted ring-1 ring-line">
+              <ImageOff className="size-4" strokeWidth={1.5} />
+            </span>
+          )}
+          <div className="min-w-0">
+            <p className="truncate font-medium">{product.name}</p>
+            <p className="truncate text-xs text-muted">
+              <span className="font-mono">{product.sku}</span>
+              {product.category ? <> · {product.category}</> : null}
+            </p>
+          </div>
         </div>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm whitespace-nowrap">
           <span className="font-mono">{formatNaira(product.basePriceKobo)}</span>
@@ -118,6 +145,7 @@ export function CatalogManager() {
     );
   }
 
+  const categories = categoriesOf(products);
   return (
     <div className="mx-auto max-w-3xl space-y-8 px-4 py-8 sm:px-6">
       <div>
@@ -142,6 +170,7 @@ export function CatalogManager() {
         {adding ? (
           <div className="mt-4">
             <ProductForm
+              categories={categories}
               onCancel={() => setAdding(false)}
               onSave={async (input) => {
                 await api.createProduct(input);
@@ -158,7 +187,7 @@ export function CatalogManager() {
         ) : (
           <ul className="mt-3 divide-y divide-line">
             {products.map((product) => (
-              <ProductRow key={product.id} product={product} onChange={load} />
+              <ProductRow key={product.id} product={product} categories={categories} onChange={load} />
             ))}
           </ul>
         )}

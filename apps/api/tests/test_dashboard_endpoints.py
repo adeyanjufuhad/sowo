@@ -189,6 +189,7 @@ def test_list_products_includes_vendor_floor_price_only_here(dashboard_client: t
                 "description": "Leather loafers",
                 "size": "43",
                 "colour": "Black",
+                "category": None,
             }
         ]
     }

@@ -64,3 +64,11 @@ New tables: `quotes` (a priced basket the model was shown; `request_payment` tur
 - **`429`** with `{ "error": { "code": "RATE_LIMITED", "message": ... } }` and a `Retry-After` header (seconds) can come from `POST /auth/signup`, `POST /auth/login` and `/webhooks/*`. `ApiError.error.code` gains `"RATE_LIMITED"`. After too many wrong passwords for one email, `POST /auth/login` is `429` even for the right password until the 15-minute window passes.
 - **Every response carries `X-Request-ID`.** Send your own to correlate logs.
 - **Unexpected errors** are `500` with `{ "error": { "code": "INTERNAL", "message": "Something went wrong on our side" } }`.
+
+### Product pictures and categories
+
+- **New:** `POST /product-images` (signed in) takes `{ data }`, a base64 JPEG, PNG, WebP or GIF of at most 1.5 MB, and returns `201 { imageUrl }`, which looks like `/product-images/<id>`. Put it in a product's `imageUrl` to use it. The type is read from the bytes, not trusted from the upload, and SVG is refused. `400` for anything else, or once a vendor holds 200 pictures. The web app shrinks photos to 1000 px JPEG before sending. Shared types `ProductImageUpload` and `ProductImageUploadResponse`; endpoint `uploadProductImage`.
+- **New:** `GET /product-images/{id}` (no sign-in, so buyers' browsers can show it; ids are random UUIDs) returns the picture with `Cache-Control: public, max-age=31536000, immutable` and `X-Content-Type-Options: nosniff`. `404` if unknown. The web app loads it through `/api/proxy/product-images/<id>`, which now passes bytes through untouched.
+- **`imageUrl`** on `POST`/`PATCH /products` accepts an uploaded picture of the vendor's own (another vendor's is a `400`) or, as before, an `http(s)://` address. A picture no product uses any more is deleted when its product changes picture or is deleted.
+- **`Product.category`** (string or `null`, at most 64 characters) is new on `GET /products` and accepted by `POST`/`PATCH /products` (`null` clears it). The assistant's `search_catalog` searches it (so "shoes" finds the vendor's "Shoes" category, and a trailing "s" is forgiven) and returns it per result; the system prompt lists the vendor's categories.
+- **Columns.** New table `product_images` (migration `0005`); `products.category` (migration `0006`).

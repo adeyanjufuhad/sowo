@@ -60,11 +60,14 @@ export interface Product {
   /** Lowest price the vendor will accept. Vendor-only. */
   floorPriceKobo: Kobo;
   stockOnHand: number;
+  /** A web address, an uploaded picture ("/product-images/<id>", served by the API), or "" for none. */
   imageUrl: string;
   /** Only the real backend sends these; the offline demo's products don't have them. */
   description?: string;
   size?: string | null;
   colour?: string | null;
+  /** The vendor's own grouping ("Shoes", "Bags"), so Sowo can answer "which shoes do you have?". */
+  category?: string | null;
 }
 
 /** A new product. Prices are whole kobo, and 0 < floorPriceKobo <= basePriceKobo. */
@@ -74,10 +77,21 @@ export interface ProductCreate {
   description?: string;
   size?: string | null;
   colour?: string | null;
+  category?: string | null;
   basePriceKobo: Kobo;
   floorPriceKobo: Kobo;
   stockOnHand?: number;
   imageUrl?: string;
+}
+
+/** A product picture, base64 encoded. The web app shrinks it first. */
+export interface ProductImageUpload {
+  data: string;
+}
+
+/** Put imageUrl on a product to use the picture. */
+export interface ProductImageUploadResponse {
+  imageUrl: string;
 }
 
 /** Send only what changes. */
@@ -426,6 +440,8 @@ export const endpoints = {
     endpoint<ProductUpdate, { product: Product }>("PATCH", `/products/${enc(id)}`),
   deleteProduct: (id: string) =>
     endpoint<void, DeleteProductResponse>("DELETE", `/products/${enc(id)}`),
+  uploadProductImage: () =>
+    endpoint<ProductImageUpload, ProductImageUploadResponse>("POST", "/product-images"),
   listDeliveryZones: () =>
     endpoint<void, { zones: DeliveryZone[] }>("GET", "/delivery-zones"),
   createDeliveryZone: () =>
