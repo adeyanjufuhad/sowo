@@ -90,6 +90,7 @@ class ProductResponse(BaseModel):
     description: str = ""
     size: str | None = None
     colour: str | None = None
+    category: str | None = None
 
 
 class ListProductsResponse(BaseModel):
@@ -196,6 +197,7 @@ class ProductCreate(BaseModel):
     description: str = ""
     size: str | None = None
     colour: str | None = None
+    category: str | None = None
     basePriceKobo: StrictInt
     floorPriceKobo: StrictInt
     stockOnHand: StrictInt = 0
@@ -203,13 +205,14 @@ class ProductCreate(BaseModel):
 
 
 class ProductUpdate(BaseModel):
-    """Send only what changes. size and colour accept null to clear them."""
+    """Send only what changes. size, colour and category accept null to clear them."""
 
     sku: str | None = None
     name: str | None = None
     description: str | None = None
     size: str | None = None
     colour: str | None = None
+    category: str | None = None
     basePriceKobo: StrictInt | None = None
     floorPriceKobo: StrictInt | None = None
     stockOnHand: StrictInt | None = None
@@ -218,6 +221,16 @@ class ProductUpdate(BaseModel):
 
 class ProductEnvelope(BaseModel):
     product: ProductResponse
+
+
+class ProductImageUpload(BaseModel):
+    """A picture for a product, base64 encoded (the web app has already shrunk it)."""
+
+    data: str
+
+
+class ProductImageResponse(BaseModel):
+    imageUrl: str  # put this in a product's imageUrl
 
 
 class DeleteProductResponse(BaseModel):

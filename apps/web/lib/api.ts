@@ -84,6 +84,7 @@ const httpApi = {
   createProduct: (request: ProductCreate) => call(endpoints.createProduct(), request),
   updateProduct: (id: string, request: ProductUpdate) => call(endpoints.updateProduct(id), request),
   deleteProduct: (id: string) => call(endpoints.deleteProduct(id)),
+  uploadProductImage: (data: string) => call(endpoints.uploadProductImage(), { data }),
   listDeliveryZones: () => call(endpoints.listDeliveryZones()),
   createDeliveryZone: (request: DeliveryZoneInput) => call(endpoints.createDeliveryZone(), request),
   updateDeliveryZone: (id: string, request: Partial<DeliveryZoneInput>) =>
@@ -140,6 +141,7 @@ const localApi: SowoApi = {
   createProduct: needsBackend,
   updateProduct: needsBackend,
   deleteProduct: needsBackend,
+  uploadProductImage: needsBackend,
   listDeliveryZones: needsBackend,
   createDeliveryZone: needsBackend,
   updateDeliveryZone: needsBackend,

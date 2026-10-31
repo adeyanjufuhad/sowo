@@ -1,7 +1,20 @@
-/* eslint-disable @next/next/no-img-element -- small local SVG placeholders, no optimisation needed */
+/* eslint-disable @next/next/no-img-element -- small SVG placeholders and already-shrunk uploads, no optimisation needed */
 import { formatNaira, type Product } from "@sowo/shared";
-import { EyeOff } from "lucide-react";
+import { EyeOff, ImageOff } from "lucide-react";
+import { productImageSrc } from "@/lib/product-image";
 import { cn } from "@/lib/utils";
+
+function Picture({ product, className }: { product: Product; className: string }) {
+  const src = productImageSrc(product.imageUrl);
+  if (!src) {
+    return (
+      <span aria-hidden className={cn("grid shrink-0 place-items-center bg-paper text-muted ring-1 ring-line", className)}>
+        <ImageOff className="size-4" strokeWidth={1.5} />
+      </span>
+    );
+  }
+  return <img src={src} alt="" width={64} height={64} className={cn("shrink-0 object-cover", className)} />;
+}
 
 function Stock({ count }: { count: number }) {
   return (
@@ -30,7 +43,7 @@ export function ProductsView({ products }: { products: Product[] }) {
       <ul className="grid gap-3 sm:grid-cols-2 md:hidden">
         {products.map((p) => (
           <li key={p.id} className="flex gap-3 rounded-3xl border border-line bg-card p-4 shadow-sm">
-            <img src={p.imageUrl} alt="" width={64} height={64} className="size-16 shrink-0 rounded-xl" />
+            <Picture product={p} className="size-16 rounded-xl" />
             <div className="min-w-0 flex-1">
               <p className="truncate font-semibold">{p.name}</p>
               <p className="font-mono text-xs text-muted">{p.sku}</p>
@@ -74,7 +87,7 @@ export function ProductsView({ products }: { products: Product[] }) {
               <tr key={p.id} className="transition-colors hover:bg-paper/55">
                 <td className="px-4 py-2.5">
                   <span className="flex items-center gap-3">
-                    <img src={p.imageUrl} alt="" width={40} height={40} className="size-10 rounded-lg" />
+                    <Picture product={p} className="size-10 rounded-lg" />
                     <span className="font-medium">{p.name}</span>
                   </span>
                 </td>

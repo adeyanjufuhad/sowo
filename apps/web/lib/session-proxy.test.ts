@@ -6,7 +6,7 @@ afterEach(() => vi.unstubAllEnvs());
 
 describe("isProxiedPath", () => {
   it("lets the dashboard, auth and simulator calls through", () => {
-    for (const path of [["auth", "login"], ["conversations", "c1", "messages"], ["orders"], ["products"], ["simulator", "messages"], ["vendor", "settings"], ["delivery-zones", "z1"]]) {
+    for (const path of [["auth", "login"], ["conversations", "c1", "messages"], ["orders"], ["products"], ["simulator", "messages"], ["vendor", "settings"], ["delivery-zones", "z1"], ["product-images", "p1"]]) {
       expect(isProxiedPath(path)).toBe(true);
     }
   });

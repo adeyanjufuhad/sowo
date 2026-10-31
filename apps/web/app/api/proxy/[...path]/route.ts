@@ -47,11 +47,13 @@ async function forward(request: NextRequest, { params }: Context) {
   } catch {
     return failure(502, "INTERNAL", "Couldn't reach the Sowo API");
   }
-  const text = await upstream.text();
+  // Bytes, not text: product pictures come back through here too, and decoding them as text would mangle them.
+  const body = await upstream.arrayBuffer();
 
   // Signing in or up: keep the token in the cookie and hand the page only the vendor.
   if ((route === "auth/login" || route === "auth/signup") && upstream.ok) {
     try {
+      const text = new TextDecoder().decode(body);
       const { sessionToken, expiresAt, ...rest } = JSON.parse(text) as { sessionToken: string; expiresAt?: string };
       const response = NextResponse.json(rest, { status: upstream.status });
       response.cookies.set(SESSION_COOKIE, sessionToken, sessionCookieOptions(expiresAt));
@@ -63,10 +65,13 @@ async function forward(request: NextRequest, { params }: Context) {
 
   // 204 and friends must not carry a body, even an empty one.
   const bodyless = upstream.status === 204 || upstream.status === 205 || upstream.status === 304;
-  const response = new NextResponse(bodyless ? null : text, {
-    status: upstream.status,
-    headers: { "content-type": upstream.headers.get("content-type") ?? "application/json" },
-  });
+  const responseHeaders = new Headers({ "content-type": upstream.headers.get("content-type") ?? "application/json" });
+  // Pictures never change once uploaded, so browsers may keep them; and they must not be sniffed as anything else.
+  for (const name of ["cache-control", "x-content-type-options"]) {
+    const value = upstream.headers.get(name);
+    if (value) responseHeaders.set(name, value);
+  }
+  const response = new NextResponse(bodyless ? null : body, { status: upstream.status, headers: responseHeaders });
   // Signed out, or the API says the session is gone: forget the cookie so the next page asks for a sign-in.
   const sessionEnded = route === "auth/logout" || (upstream.status === 401 && token && route !== "auth/login");
   if (sessionEnded) response.cookies.delete(SESSION_COOKIE);

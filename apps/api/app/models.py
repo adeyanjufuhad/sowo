@@ -9,6 +9,7 @@ from sqlalchemy import (
     Enum,
     ForeignKey,
     Integer,
+    LargeBinary,
     String,
     Text,
     UniqueConstraint,
@@ -105,6 +106,8 @@ class Product(Base):
     description: Mapped[str] = mapped_column(Text, nullable=False)
     size: Mapped[str | None] = mapped_column(String(32))
     colour: Mapped[str | None] = mapped_column(String(64))
+    # The vendor's own grouping ("Shoes", "Bags"). The assistant searches it, so "which shoes do you have?" works.
+    category: Mapped[str | None] = mapped_column(String(64))
     price_kobo: Mapped[int] = mapped_column(Integer, nullable=False)
     floor_price_kobo: Mapped[int] = mapped_column(Integer, nullable=False)
     stock: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
@@ -113,6 +116,19 @@ class Product(Base):
     # shown, but the orders that mention it keep working.
     archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     vendor: Mapped[Vendor] = relationship(back_populates="products")
+
+
+class ProductImage(Base):
+    """A picture a vendor uploaded for a product. It lives in the database because the free hosts this runs on lose
+    their disk on every deploy; the web app resizes it before sending, so a row stays small. The product points at it
+    with image_url = "/product-images/<id>"."""
+
+    __tablename__ = "product_images"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    vendor_id: Mapped[str] = mapped_column(ForeignKey("vendors.id"), nullable=False, index=True)
+    content_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    data: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=func.now())
 
 
 class DeliveryZone(Base):

@@ -31,7 +31,7 @@ from app.models import (
 )
 from app.services import guard, paystack
 from app.services import orders as order_service
-from app.services.catalog import search_catalog
+from app.services.catalog import search_catalog, vendor_categories
 from app.services.money import format_naira
 from app.services.offers import evaluate_and_persist_offer
 from app.services.ollama import ChatModel, parse_tool_calls, strip_thinking
@@ -63,8 +63,9 @@ def _function(name: str, description: str, properties: dict[str, Any], required:
 TOOLS: list[dict[str, Any]] = [
     _function(
         "search_catalog",
-        "Look up products and their prices and stock. Use short keywords like 'black loafers 43'.",
-        {"query": {"type": "string", "description": "Keywords naming the product, colour or size"}},
+        "Look up products and their prices and stock. Use short keywords like 'black loafers 43', or a category "
+        "like 'shoes' when the buyer asks what you have of a kind.",
+        {"query": {"type": "string", "description": "Keywords naming the product, category, colour or size"}},
         ["query"],
     ),
     _function(
@@ -238,6 +239,7 @@ class ToolBox:
                 {
                     "sku": hit["sku"],
                     "name": hit["name"],
+                    **({"category": hit["category"]} if "category" in hit else {}),
                     "price": format_naira(int(hit["priceKobo"])),
                     "in_stock": hit["stockOnHand"],
                 }
@@ -487,7 +489,15 @@ def system_prompt(session: Session, conversation: Conversation, settings: Settin
     assert vendor is not None
     shop, owner = vendor.name, owner_name(vendor)
     areas = ", ".join(_delivery_areas(session, vendor.id)) or "none yet"
-    first = "" if conversation.greeted else "\nThis is the buyer's first message: start with a short, warm greeting.\n"
+    categories = vendor_categories(session, vendor.id)
+    # Only when the vendor has set some: a buyer asking "wetin you get?" can then be told the kinds of things on sale.
+    selling = (
+        f"We sell: {', '.join(categories)}. When a buyer asks what you have of one kind, call search_catalog with "
+        "that category.\n"
+        if categories
+        else ""
+    )
+    first ="" if conversation.greeted else "\nThis is the buyer's first message: start with a short, warm greeting.\n"
     if vendor.payment_mode == "manual":
         never_paid = (
             f"- Never say a payment has arrived. {owner} confirms payments personally, after the money shows in "
@@ -536,7 +546,7 @@ their offer in whole naira (35k is 35000; "41" in a price chat means 41000).
 5. For complaints, exchanges, refunds, bulk orders, custom requests or anything else you cannot do, call \
 escalate_to_vendor and tell the buyer {owner} will reply here soon.
 
-We deliver to: {areas}.
+{selling}We deliver to: {areas}.
 {conversation_state(session, conversation, owner)}{first}"""
 
 
