@@ -90,6 +90,7 @@ const httpApi = {
   updateDeliveryZone: (id: string, request: Partial<DeliveryZoneInput>) =>
     call(endpoints.updateDeliveryZone(id), request),
   deleteDeliveryZone: (id: string) => call(endpoints.deleteDeliveryZone(id)),
+  getSimulatorShop: () => call(endpoints.getSimulatorShop()),
   sendSimulatorMessage: (request: SimulatorMessageRequest) => call(endpoints.sendSimulatorMessage(), request),
   simulatePayment: (request: SimulatorPaymentRequest) => call(endpoints.simulatePayment(), request),
   sendSimulatorReceipt: (request: SimulatorReceiptRequest) => call(endpoints.sendSimulatorReceipt(), request),
@@ -118,6 +119,8 @@ const localApi: SowoApi = {
   sendVendorReply: (id, body) => runLocal((s, now) => sendVendorReply(s, id, body, now)),
   listOrders: () => runLocal((s) => ({ orders: listOrders(s) })),
   listProducts: () => runLocal((s) => ({ products: listProducts(s) })),
+  // The offline demo is always Ada's shop.
+  getSimulatorShop: () => Promise.resolve({ businessName: "Ada's Footwear", ownerName: "Ada" }),
   sendSimulatorMessage: (request) =>
     runLocal(
       (s, now) =>

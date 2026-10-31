@@ -1,6 +1,13 @@
 "use client";
 
-import { formatNaira, type Conversation, type Message, type Order, type RequestPaymentCall } from "@sowo/shared";
+import {
+  formatNaira,
+  type Conversation,
+  type Message,
+  type Order,
+  type RequestPaymentCall,
+  type SimulatorShop,
+} from "@sowo/shared";
 import { ArrowUp, CheckCheck, Landmark, LayoutDashboard, LockKeyhole, RotateCcw } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from "react";
@@ -32,6 +39,16 @@ function storeId(id: string | null) {
   }
 }
 
+/** "Adeyanju's Store" -> "AS", for the chat's avatar. */
+function initials(name: string): string {
+  const letters = name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((word) => word[0]?.toUpperCase() ?? "");
+  return letters.join("") || "S";
+}
+
 function paymentCall(message: Message): RequestPaymentCall | undefined {
   return message.toolCalls?.find((c): c is RequestPaymentCall => c.tool === "request_payment");
 }
@@ -57,6 +74,8 @@ export function Simulator() {
   const [receiptFor, setReceiptFor] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<"chat" | "tools">("chat");
+  // The shop the assistant really sells for, so the chat shows the same name as its dashboard.
+  const [shop, setShop] = useState<SimulatorShop | null>(null);
   const threadRef = useRef<HTMLDivElement>(null);
   const pendingSeq = useRef(0);
   const inputId = useId();
@@ -65,6 +84,13 @@ export function Simulator() {
     const { orders: all } = await api.listOrders();
     const mine = all.filter((o) => o.conversationId === conversationId && o.paymentReference);
     setOrders(new Map(mine.map((o) => [o.paymentReference as string, o])));
+  }, []);
+
+  useEffect(() => {
+    api
+      .getSimulatorShop()
+      .then(setShop)
+      .catch(() => setShop(null)); // the chat still works; it just says "the shop"
   }, []);
 
   // Restore the last chat after a reload.
@@ -81,9 +107,9 @@ export function Simulator() {
       .catch(() => storeId(null));
   }, [refreshOrders]);
 
-  const waitingOnAda = [...orders.values()].some((o) => o.paymentMethod === "MANUAL" && o.paymentStatus === "PENDING");
+  const waitingOnOwner = [...orders.values()].some((o) => o.paymentMethod === "MANUAL" && o.paymentStatus === "PENDING");
 
-  // Poll so replies Ada sends from the dashboard show up here, and so does her tapping Mark paid.
+  // Poll so replies the owner sends from the dashboard show up here, and so does their tapping Mark paid.
   useEffect(() => {
     if (!conversation || sending || paying || receiptFor) return;
     const timer = window.setInterval(async () => {
@@ -91,13 +117,13 @@ export function Simulator() {
         const res = await api.listMessages(conversation.id);
         setConversation(res.conversation);
         setMessages((prev) => (res.messages.length !== prev.length ? res.messages : prev));
-        if (waitingOnAda) await refreshOrders(conversation.id);
+        if (waitingOnOwner) await refreshOrders(conversation.id);
       } catch {
         // keep the current view; the next poll may succeed
       }
     }, POLL_MS);
     return () => window.clearInterval(timer);
-  }, [conversation, sending, paying, receiptFor, waitingOnAda, refreshOrders]);
+  }, [conversation, sending, paying, receiptFor, waitingOnOwner, refreshOrders]);
 
   // Keep the newest message in view.
   useEffect(() => {
@@ -182,18 +208,25 @@ export function Simulator() {
   const status = conversation?.status;
   const typing = sending && (!status || status === "AI_ACTIVE" || status === "CLOSED");
   const toolCount = messages.filter((m) => m.sender === "AI").length;
+  const shopName = shop?.businessName ?? "the shop";
+  const owner = shop?.ownerName ?? "the owner";
+  const Owner = owner.charAt(0).toUpperCase() + owner.slice(1); // to start a sentence with
 
   const chat = (
     <div className="flex h-full min-h-0 flex-col">
       {/* Chat header */}
       <div className="flex items-center justify-between gap-3 border-b border-line bg-card px-4 py-3">
         <div className="flex items-center gap-3">
-          <span aria-hidden className="grid size-10 place-items-center rounded-full bg-accent-wash font-display text-sm font-bold text-accent-strong">
-            AF
+          <span aria-hidden className="grid size-10 shrink-0 place-items-center rounded-full bg-accent-wash font-display text-sm font-bold text-accent-strong">
+            {shop ? initials(shop.businessName) : null}
           </span>
-          <div>
-            <p className="text-sm font-semibold">Ada&apos;s Footwear</p>
-            <p className="text-xs text-muted">{status === "HUMAN_TAKEOVER" ? "Ada is typing herself" : "Usually replies in seconds"}</p>
+          <div className="min-w-0">
+            {shop ? (
+              <p className="truncate text-sm font-semibold">{shop.businessName}</p>
+            ) : (
+              <span aria-hidden className="block h-4 w-28 animate-pulse rounded bg-paper-deep" />
+            )}
+            <p className="text-xs text-muted">{status === "HUMAN_TAKEOVER" ? `${Owner} is replying personally` : "Usually replies in seconds"}</p>
           </div>
         </div>
         <button
@@ -211,8 +244,8 @@ export function Simulator() {
           <div className="mx-auto mt-6 max-w-[30ch] text-center">
             <p className="font-display text-xl font-semibold tracking-[-0.02em]">You&apos;re the buyer.</p>
             <p className="mt-2 text-sm leading-relaxed text-muted">
-              Ask Ada&apos;s Footwear about a pair of shoes and try to haggle. Tap a suggestion below or type in Pidgin
-              or English.
+              Ask {shopName} about something they sell and try to haggle. Tap a suggestion below or type in Pidgin or
+              English.
             </p>
           </div>
         ) : null}
@@ -234,7 +267,7 @@ export function Simulator() {
                   )}
                 >
                   <span className="sr-only">{mine ? "You: " : vendor ? "" : "Sowo: "}</span>
-                  {vendor ? <span className="mb-0.5 block text-xs font-semibold text-accent-strong">Ada</span> : null}
+                  {vendor ? <span className="mb-0.5 block text-xs font-semibold text-accent-strong">{Owner}</span> : null}
                   {body}
                   <span className={cn("mt-1 flex items-center justify-end gap-1 text-[11px]", mine ? "text-white/70" : "text-muted")}>
                     {watTime(message.createdAt)}
@@ -245,7 +278,7 @@ export function Simulator() {
                 {payment?.output.method === "MANUAL" && payment.output.bank ? (
                   <div className="mt-2 w-[85%] max-w-xs rounded-2xl bg-card p-3.5 ring-1 ring-line">
                     <p className="flex items-center gap-1.5 text-xs text-muted">
-                      <Landmark aria-hidden className="size-3.5" strokeWidth={1.75} /> Bank transfer to Ada
+                      <Landmark aria-hidden className="size-3.5" strokeWidth={1.75} /> Bank transfer to {shopName}
                     </p>
                     <p className="mt-1 font-display text-2xl font-semibold tracking-[-0.03em]">
                       {formatNaira(payment.output.amountKobo)}
@@ -270,11 +303,11 @@ export function Simulator() {
                     </dl>
                     {order?.paymentStatus === "PAID" ? (
                       <p className="mt-3 rounded-lg bg-accent-wash px-3 py-2 text-sm font-medium text-accent-strong">
-                        Paid. Ada confirmed the transfer.
+                        Paid. {Owner} confirmed the transfer.
                       </p>
                     ) : order?.receiptReportedAt ? (
                       <p className="mt-3 rounded-lg bg-paper-deep px-3 py-2 text-sm text-ink-soft">
-                        Receipt sent. Waiting for Ada to confirm it in her dashboard.
+                        Receipt sent. Waiting for {owner} to confirm it in the dashboard.
                       </p>
                     ) : order?.paymentStatus === "PENDING" ? (
                       <button
@@ -346,13 +379,13 @@ export function Simulator() {
         {status === "NEEDS_ATTENTION" || status === "HUMAN_TAKEOVER" ? (
           <div className="mx-auto mt-4 max-w-sm rounded-2xl bg-card p-4 text-center text-sm ring-1 ring-line">
             <p className="font-medium">
-              {status === "NEEDS_ATTENTION" ? "Sowo has handed this chat to Ada." : "Ada has taken over. Sowo is paused."}
+              {status === "NEEDS_ATTENTION" ? `Sowo has handed this chat to ${owner}.` : `${Owner} has taken over. Sowo is paused.`}
             </p>
             <Link
               href="/dashboard"
               className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-accent-strong underline-offset-4 hover:underline"
             >
-              <LayoutDashboard aria-hidden className="size-4" strokeWidth={1.75} /> Reply as Ada in the dashboard
+              <LayoutDashboard aria-hidden className="size-4" strokeWidth={1.75} /> Reply as {owner} in the dashboard
             </Link>
           </div>
         ) : null}
@@ -382,7 +415,7 @@ export function Simulator() {
         ) : null}
         <form onSubmit={onSubmit} className="flex items-center gap-2">
           <label htmlFor={inputId} className="sr-only">
-            Message Ada&apos;s Footwear
+            Message {shopName}
           </label>
           <input
             id={inputId}

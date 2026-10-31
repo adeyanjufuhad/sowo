@@ -23,10 +23,11 @@ from app.schemas import (
     SimulatorPaymentResponse,
     SimulatorReceiptRequest,
     SimulatorReceiptResponse,
+    SimulatorShopResponse,
 )
 from app.services import flow, payments
 from app.services.orders import mark_order_paid
-from app.services.vendors import demo_vendor
+from app.services.vendors import demo_vendor, owner_name
 
 SessionDependency = Annotated[Session, Depends(get_db)]
 
@@ -37,6 +38,15 @@ def _require_simulator() -> None:
 
 
 router = APIRouter(dependencies=[Depends(_require_simulator)])
+
+
+@router.get("/simulator/shop", response_model=SimulatorShopResponse)
+def get_simulator_shop(session: SessionDependency) -> SimulatorShopResponse:
+    """The demo shop's names, so /try shows the shop the assistant really sells for."""
+    vendor = demo_vendor(session, get_settings())
+    if vendor is None:
+        raise HTTPException(status_code=409, detail="The demo shop does not exist; run python -m app.seed_demo")
+    return SimulatorShopResponse(businessName=vendor.name, ownerName=owner_name(vendor))
 
 
 @router.post("/simulator/messages", response_model=SimulatorMessageResponse, response_model_exclude_none=True)

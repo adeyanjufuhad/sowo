@@ -108,6 +108,13 @@ class SimulatorMessageResponse(BaseModel):
     messages: list[MessageResponse]
 
 
+class SimulatorShopResponse(BaseModel):
+    """Who the /try buyer is talking to. Only what any buyer would see on WhatsApp."""
+
+    businessName: str
+    ownerName: str  # falls back to the business name, the same way the assistant names the owner
+
+
 class SimulatorPaymentRequest(BaseModel):
     reference: str = Field(min_length=1)
     outcome: Literal["SUCCESS", "FAILED"]
@@ -178,8 +185,9 @@ class VendorSettingsResponse(BaseModel):
 
 
 class VendorSettingsUpdate(BaseModel):
-    """Send only what changes. null (or an empty string) clears an optional setting."""
+    """Send only what changes. null (or an empty string) clears an optional setting; businessName can't be cleared."""
 
+    businessName: str | None = None
     ownerName: str | None = None
     whatsappPhoneNumberId: str | None = None
     alertPhone: str | None = None
