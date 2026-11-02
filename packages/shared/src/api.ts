@@ -313,6 +313,14 @@ export interface SimulatorShop {
   ownerName: string;
 }
 
+/** A simulator chat with its orders. Readable without a vendor sign-in, so the /try page can poll it. */
+export interface SimulatorConversationResponse {
+  conversation: Conversation;
+  messages: Message[];
+  /** Orders placed in this chat, newest first. */
+  orders: Order[];
+}
+
 export interface SimulatorPaymentRequest {
   reference: string;
   outcome: "SUCCESS" | "FAILED";
@@ -470,6 +478,9 @@ export const endpoints = {
       "POST",
       "/simulator/messages",
     ),
+  /** No sign-in. 404 unless it is a simulator chat. */
+  getSimulatorConversation: (id: string) =>
+    endpoint<void, SimulatorConversationResponse>("GET", `/simulator/conversations/${enc(id)}`),
   /** Demo helper: stands in for the Paystack webhook so the simulator works offline. */
   simulatePayment: () =>
     endpoint<SimulatorPaymentRequest, SimulatorPaymentResponse>(

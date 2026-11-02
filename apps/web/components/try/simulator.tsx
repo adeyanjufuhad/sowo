@@ -80,9 +80,10 @@ export function Simulator() {
   const pendingSeq = useRef(0);
   const inputId = useId();
 
+  // The simulator reads its own chat and orders from /simulator, which needs no vendor sign-in: /try is for visitors.
   const refreshOrders = useCallback(async (conversationId: string) => {
-    const { orders: all } = await api.listOrders();
-    const mine = all.filter((o) => o.conversationId === conversationId && o.paymentReference);
+    const { orders: all } = await api.getSimulatorConversation(conversationId);
+    const mine = all.filter((o) => o.paymentReference);
     setOrders(new Map(mine.map((o) => [o.paymentReference as string, o])));
   }, []);
 
@@ -98,14 +99,14 @@ export function Simulator() {
     const id = readStoredId();
     if (!id) return;
     api
-      .listMessages(id)
-      .then(async (res) => {
+      .getSimulatorConversation(id)
+      .then((res) => {
         setConversation(res.conversation);
         setMessages(res.messages);
-        await refreshOrders(id);
+        setOrders(new Map(res.orders.filter((o) => o.paymentReference).map((o) => [o.paymentReference as string, o])));
       })
       .catch(() => storeId(null));
-  }, [refreshOrders]);
+  }, []);
 
   const waitingOnOwner = [...orders.values()].some((o) => o.paymentMethod === "MANUAL" && o.paymentStatus === "PENDING");
 
@@ -114,16 +115,18 @@ export function Simulator() {
     if (!conversation || sending || paying || receiptFor) return;
     const timer = window.setInterval(async () => {
       try {
-        const res = await api.listMessages(conversation.id);
+        const res = await api.getSimulatorConversation(conversation.id);
         setConversation(res.conversation);
         setMessages((prev) => (res.messages.length !== prev.length ? res.messages : prev));
-        if (waitingOnOwner) await refreshOrders(conversation.id);
+        if (waitingOnOwner) {
+          setOrders(new Map(res.orders.filter((o) => o.paymentReference).map((o) => [o.paymentReference as string, o])));
+        }
       } catch {
         // keep the current view; the next poll may succeed
       }
     }, POLL_MS);
     return () => window.clearInterval(timer);
-  }, [conversation, sending, paying, receiptFor, waitingOnOwner, refreshOrders]);
+  }, [conversation, sending, paying, receiptFor, waitingOnOwner]);
 
   // Keep the newest message in view.
   useEffect(() => {
@@ -167,7 +170,7 @@ export function Simulator() {
       const res = await api.simulatePayment({ reference, outcome });
       setOrders((prev) => new Map(prev).set(reference, res.order));
       setMessages((prev) => [...prev, ...res.messages]);
-      const fresh = await api.listMessages(res.order.conversationId ?? "");
+      const fresh = await api.getSimulatorConversation(res.order.conversationId ?? "");
       setConversation(fresh.conversation);
     } catch (err) {
       setError(err instanceof ApiRequestError ? err.message : "Payment simulation failed. Try again.");

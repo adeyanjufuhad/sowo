@@ -14,9 +14,10 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.db import get_db
 from app.deps import ChatModelDependency
-from app.models import Conversation, MessageRole, Order, OrderStatus, PaymentMethod
+from app.models import Conversation, Message, MessageRole, Order, OrderStatus, PaymentMethod
 from app.routes import _conversation_response, _message_response, _order_response
 from app.schemas import (
+    SimulatorConversationResponse,
     SimulatorMessageRequest,
     SimulatorMessageResponse,
     SimulatorPaymentRequest,
@@ -26,7 +27,7 @@ from app.schemas import (
     SimulatorShopResponse,
 )
 from app.services import flow, payments
-from app.services.orders import mark_order_paid
+from app.services.orders import expire_holds, mark_order_paid
 from app.services.vendors import demo_vendor, owner_name
 
 SessionDependency = Annotated[Session, Depends(get_db)]
@@ -80,6 +81,35 @@ def send_simulator_message(
     return SimulatorMessageResponse(
         conversation=_conversation_response(session, conversation),
         messages=[_message_response(message) for message in messages],
+    )
+
+
+@router.get(
+    "/simulator/conversations/{conversation_id}",
+    response_model=SimulatorConversationResponse,
+    response_model_exclude_none=True,
+)
+def get_simulator_conversation(conversation_id: str, session: SessionDependency) -> SimulatorConversationResponse:
+    """What /try polls: the chat and its orders, readable without a vendor sign-in. Only simulator chats."""
+    conversation = session.get(Conversation, conversation_id)
+    if conversation is None or not conversation.is_simulator:
+        raise HTTPException(status_code=404, detail=f"Conversation {conversation_id} not found")
+    expire_holds(session)  # release overdue holds now, since nothing polls for them in the background
+    session.commit()
+    messages = session.scalars(
+        select(Message)
+        .where(Message.conversation_id == conversation.id)
+        .order_by(Message.created_at.asc(), Message.id.asc())
+    )
+    orders = session.scalars(
+        select(Order)
+        .where(Order.conversation_id == conversation.id)
+        .order_by(Order.created_at.desc(), Order.id.desc())
+    )
+    return SimulatorConversationResponse(
+        conversation=_conversation_response(session, conversation),
+        messages=[_message_response(message) for message in messages],
+        orders=[_order_response(session, order) for order in orders],
     )
 
 

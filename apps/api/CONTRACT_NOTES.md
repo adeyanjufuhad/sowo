@@ -65,6 +65,10 @@ New tables: `quotes` (a priced basket the model was shown; `request_payment` tur
 - **Every response carries `X-Request-ID`.** Send your own to correlate logs.
 - **Unexpected errors** are `500` with `{ "error": { "code": "INTERNAL", "message": "Something went wrong on our side" } }`.
 
+### Buyer simulator read endpoint
+
+- **New:** `GET /simulator/conversations/{id}` (no sign-in; `404` unless the chat is a simulator chat or the simulator is off) returns `{ conversation, messages, orders }`, with orders newest first. The /try page polls it instead of `GET /conversations/{id}/messages` and `GET /orders`, which need a vendor session, so a signed-out visitor is no longer sent to the sign-in page. The shared type is `SimulatorConversationResponse`; the endpoint is `getSimulatorConversation`.
+
 ### Product pictures and categories
 
 - **New:** `POST /product-images` (signed in) takes `{ data }`, a base64 JPEG, PNG, WebP or GIF of at most 1.5 MB, and returns `201 { imageUrl }`, which looks like `/product-images/<id>`. Put it in a product's `imageUrl` to use it. The type is read from the bytes, not trusted from the upload, and SVG is refused. `400` for anything else, or once a vendor holds 200 pictures. The web app shrinks photos to 1000 px JPEG before sending. Shared types `ProductImageUpload` and `ProductImageUploadResponse`; endpoint `uploadProductImage`.
