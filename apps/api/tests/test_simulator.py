@@ -203,3 +203,49 @@ def test_the_simulator_cannot_mark_a_real_buyers_order_paid(env: Env, client: Te
 def test_an_invalid_outcome_is_a_bad_request(client: TestClient) -> None:
     response = client.post("/simulator/payments", json={"reference": "SW-1", "outcome": "MAYBE"})
     assert response.status_code == 400
+
+
+def test_a_signed_out_buyer_can_read_their_chat_and_its_orders(anonymous_client: TestClient) -> None:
+    conversation_id, reference = sell_through_api(anonymous_client)
+
+    response = anonymous_client.get(f"/simulator/conversations/{conversation_id}")
+
+    assert response.status_code == 200, response.text
+    chat = response.json()
+    assert chat["conversation"]["id"] == conversation_id
+    assert [m["sender"] for m in chat["messages"]][:2] == ["BUYER", "AI"]
+    assert [o["paymentReference"] for o in chat["orders"]] == [reference]
+    assert chat["orders"][0]["conversationId"] == conversation_id
+    assert "floor" not in response.text.casefold()
+
+
+def test_the_chat_shows_the_paid_order_after_a_simulated_payment(anonymous_client: TestClient) -> None:
+    conversation_id, reference = sell_through_api(anonymous_client)
+    paid = anonymous_client.post("/simulator/payments", json={"reference": reference, "outcome": "SUCCESS"})
+    assert paid.status_code == 200, paid.text
+
+    chat = anonymous_client.get(f"/simulator/conversations/{conversation_id}").json()
+
+    assert [o["paymentStatus"] for o in chat["orders"]] == ["PAID"]
+    assert chat["messages"][-1]["sender"] == "AI"
+
+
+def test_reading_a_chat_still_needs_a_simulator_chat(env: Env, anonymous_client: TestClient) -> None:
+    real = new_chat(env, simulator=False, name="Funke")
+    assert anonymous_client.get(f"/simulator/conversations/{real}").status_code == 404
+    assert anonymous_client.get("/simulator/conversations/nope").status_code == 404
+
+
+def test_the_chat_read_is_off_with_the_simulator(
+    anonymous_client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    conversation_id, _ = sell_through_api(anonymous_client)
+    monkeypatch.setenv("SIMULATOR_ENABLED", "false")
+    get_settings.cache_clear()
+    assert anonymous_client.get(f"/simulator/conversations/{conversation_id}").status_code == 404
+
+
+def test_the_vendor_routes_still_need_a_sign_in(anonymous_client: TestClient) -> None:
+    conversation_id, _ = sell_through_api(anonymous_client)
+    assert anonymous_client.get(f"/conversations/{conversation_id}/messages").status_code == 401
+    assert anonymous_client.get("/orders").status_code == 401

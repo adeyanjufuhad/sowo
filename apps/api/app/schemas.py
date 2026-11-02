@@ -115,6 +115,12 @@ class SimulatorShopResponse(BaseModel):
     ownerName: str  # falls back to the business name, the same way the assistant names the owner
 
 
+class SimulatorConversationResponse(BaseModel):
+    conversation: ConversationResponse
+    messages: list[MessageResponse]
+    orders: list[OrderResponse]
+
+
 class SimulatorPaymentRequest(BaseModel):
     reference: str = Field(min_length=1)
     outcome: Literal["SUCCESS", "FAILED"]
