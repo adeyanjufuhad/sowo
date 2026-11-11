@@ -6,6 +6,7 @@ from app.services.guard import (
     find_unbacked_amounts,
     kobo_values,
     looks_like_pidgin,
+    offered_amounts,
 )
 from app.services.money import format_naira
 
@@ -96,3 +97,22 @@ def test_naira_formatting_refuses_floats_and_bools() -> None:
         format_naira(43_500.5)  # type: ignore[arg-type]
     with pytest.raises(TypeError):
         format_naira(True)
+
+
+@pytest.mark.parametrize(
+    ("text", "kobo"),
+    [
+        ("Make it 41 na", [4_100_000]),
+        ("abeg do am 38", [3_800_000]),
+        ("Can you do 40?", [4_000_000]),
+        ("abeg do am 35k", [3_500_000]),
+        ("Na size 43", []),
+        ("Make it size 43 abeg", []),
+        ("I go pay for 2 pairs", []),
+        ("Deliver in 3 days abeg", []),
+        ("I dey Ikeja", []),
+        ("41?", []),
+    ],
+)
+def test_a_bare_number_in_a_price_ask_is_read_as_thousands(text: str, kobo: list[int]) -> None:
+    assert offered_amounts(text) == kobo

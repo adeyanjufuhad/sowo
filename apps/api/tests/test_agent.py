@@ -295,3 +295,48 @@ def test_an_unknown_tool_name_tells_the_model_what_it_may_call_instead(env: Env)
     for tool in ("search_catalog", "evaluate_offer", "get_quote", "request_payment", "escalate_to_vendor"):
         assert tool in told
     assert reply is not None and reply.text == "Let me check that for you."
+
+
+def test_a_bare_number_offer_settled_in_words_is_sent_back_through_evaluate_offer(env: Env) -> None:
+    """Live on /try: "Make it 41 na" got a prose ₦41,000 with no tool, which ended as "Give me a moment"."""
+    chat = new_chat(env)
+    model = ScriptedModel(
+        say("Okay, ₦41,000 for you. Where you dey?"),
+        call("evaluate_offer", sku="LOAF-BLK-43", offer_naira=41000),
+        say("Deal! ₦41,000. Where we go deliver am?"),
+    )
+    reply = say_to_sowo(env, chat, "Make it 41 na", model)
+
+    assert reply is not None and reply.text == "Deal! ₦41,000. Where we go deliver am?"
+    assert [c["tool"] for c in reply.tool_calls or []] == ["evaluate_offer"]
+    assert model.requests[1]["tools"], "the nudge must leave the tools on offer"
+
+
+def test_an_invented_delivery_fee_is_sent_back_with_the_tools_still_on_offer(env: Env) -> None:
+    chat = new_chat(env)
+    model = ScriptedModel(
+        say("Delivery to Ikeja na ₦3,000, so total na ₦48,000."),
+        call("get_quote", items=[{"sku": "LOAF-BLK-43", "quantity": 1}], delivery_area="Ikeja"),
+        say("Delivery na ₦2,500, so your total na ₦47,500. You ready to pay?"),
+    )
+    reply = say_to_sowo(env, chat, "I dey Ikeja", model)
+
+    assert reply is not None and reply.text == "Delivery na ₦2,500, so your total na ₦47,500. You ready to pay?"
+    nudge = model.requests[1]
+    assert nudge["tools"] and "get_quote" in nudge["messages"][-1]["content"]
+    assert "no tool returned" in nudge["messages"][-1]["content"]
+
+
+def test_with_nothing_decided_this_turn_the_fallback_restates_the_last_server_decision(env: Env) -> None:
+    chat = new_chat(env)
+    say_to_sowo(
+        env,
+        chat,
+        "Abeg do am 35k",
+        ScriptedModel(call("evaluate_offer", sku="LOAF-BLK-43", offer_naira=35000), say("Best I fit do na ₦43,000.")),
+    )
+    model = ScriptedModel(say("Okay ₦30,000 final."), say("Na ₦30,000 be the price."))
+    reply = say_to_sowo(env, chat, "I dey Ikeja", model)
+
+    assert reply is not None and reply.text == "Best I fit do na ₦43,000."
+    assert "moment" not in reply.text

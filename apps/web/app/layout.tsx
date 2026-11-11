@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Bricolage_Grotesque, Geist, Geist_Mono } from "next/font/google";
+import { WakeApi } from "@/components/wake-api";
 import "./globals.css";
 
 // latin-ext carries the Yoruba letters (ṣ, ọ) in the brand name.
@@ -31,6 +32,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <noscript>
           <style>{`[data-reveal]{opacity:1!important;transform:none!important;filter:none!important}`}</style>
         </noscript>
+        <WakeApi />
         {children}
       </body>
     </html>

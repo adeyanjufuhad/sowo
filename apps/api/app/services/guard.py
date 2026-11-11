@@ -31,6 +31,33 @@ def amounts_in(text: str) -> list[int]:
     return found
 
 
+# Buyers haggle in thousands without saying so: "make it 41 na" after a ₦43,000 counter means ₦41,000.
+_SHORTHAND = re.compile(r"(?<![\d,.₦])\b(?P<n>[1-9]\d{0,2})\b(?![\d,.]|\s?(?:k\b|thousand|naira))", re.IGNORECASE)
+_PRICE_CUE = re.compile(
+    r"\b(?:make\s+it|make\s+am|do\s+am|do\s+it|fit\s+do|can\s+you\s+do|last|price|offer|pay|reduce|how\s+about|"
+    r"abeg|oya|give\s+me|i\s+go\s+give)\b",
+    re.IGNORECASE,
+)
+_NOT_A_PRICE_BEFORE = re.compile(r"(?:size|sz|no\.?|number|qty|quantity|x|order|ref)\s*$", re.IGNORECASE)
+_NOT_A_PRICE_AFTER = re.compile(r"^\s*(?:pairs?|pcs|pieces?|days?|weeks?|hours?|mins?|size|yrs?|years?)\b", re.IGNORECASE)
+
+
+def offered_amounts(text: str) -> list[int]:
+    """Prices a buyer offered, in kobo: every written amount, plus "41" meaning ₦41,000 in a price ask.
+
+    The shorthand only counts in a message that reads like haggling, and never for a size, a count or a reference,
+    so "Na size 43" offers nothing.
+    """
+    found = amounts_in(text)
+    if not _PRICE_CUE.search(text):
+        return found
+    for match in _SHORTHAND.finditer(text):
+        if _NOT_A_PRICE_BEFORE.search(text[: match.start()]) or _NOT_A_PRICE_AFTER.match(text[match.end() :]):
+            continue
+        found.append(int(match.group("n")) * 1000 * 100)
+    return found
+
+
 def kobo_values(data: Any) -> set[int]:
     """Every integer stored under a key ending in 'Kobo', anywhere inside a tool call's input or output."""
     values: set[int] = set()
