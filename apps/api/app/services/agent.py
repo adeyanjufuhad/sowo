@@ -628,7 +628,7 @@ def _allowed_amounts(session: Session, conversation: Conversation, traces: list[
         allowed |= guard.kobo_values(trace)
     for message in session.scalars(select(Message).where(Message.conversation_id == conversation.id)):
         if message.role == MessageRole.BUYER:
-            allowed |= set(guard.amounts_in(message.text))
+            allowed |= set(guard.offered_amounts(message.text))
         for call in message.tool_calls or []:
             allowed |= guard.kobo_values(call)
     return allowed
@@ -661,7 +661,7 @@ def _settled_in_words(
             )
         )
     )
-    offered = {amount for amount in guard.amounts_in(buyer_text) if amount >= 100_000} - agreed
+    offered = {amount for amount in guard.offered_amounts(buyer_text) if amount >= 100_000} - agreed
     return [amount for amount in guard.amounts_in(reply) if amount in offered]
 
 
@@ -677,6 +677,31 @@ def _problems(reply: str, allowed: set[int], paid: bool, settled: list[int]) -> 
     if not paid and guard.claims_payment_received(reply):
         problems.append("it says a payment arrived, but none has")
     return problems
+
+
+def _nudge(problems: list[str], settled: list[int]) -> str:
+    if settled and len(problems) == 1:
+        return (
+            "(system) The buyer named a price and you answered without deciding it. Call evaluate_offer with the "
+            "sku and their offer in whole naira, then say only what it returns."
+        )
+    return (
+        f"(system) Your reply broke a rule: {'; '.join(problems)}. If the buyer named a price, call evaluate_offer "
+        "with the sku and their offer in whole naira. For a delivery fee or a total, call get_quote. Then reply "
+        "using only amounts from the tool results, and never say a payment has arrived."
+    )
+
+
+def _earlier_traces(session: Session, conversation: Conversation) -> list[dict[str, Any]]:
+    """The tool calls behind Sowo's earlier replies in this chat, oldest first."""
+    traces: list[dict[str, Any]] = []
+    for message in session.scalars(
+        select(Message)
+        .where(Message.conversation_id == conversation.id, Message.role == MessageRole.AI)
+        .order_by(Message.created_at, Message.id)
+    ):
+        traces.extend(call for call in message.tool_calls or [] if isinstance(call, dict) and "tool" in call)
+    return traces
 
 
 def fallback_reply(traces: list[dict[str, Any]], buyer_text: str, owner: str) -> str:
@@ -728,22 +753,24 @@ def run_agent(session: Session, conversation: Conversation, model: ChatModel, se
     text: str | None = None
     nudged = False
 
+    paid = _has_paid_order(session, conversation)
     for _ in range(settings.agent_max_tool_rounds):
         reply = model.chat(messages, tools)
         calls = parse_tool_calls(reply)
         if not calls:
             text = strip_thinking(str(reply.get("content") or ""))
-            # One nudge if it settled a price in words: the tool is still available in the loop, not afterwards.
-            if not nudged and _settled_in_words(session, conversation, text, buyer_text, traces):
+            if nudged:
+                break
+            # One nudge for a reply that breaks a rule, sent while the tools are still on offer: a price the buyer
+            # named goes through evaluate_offer, a delivery fee or total through get_quote. Afterwards the tools
+            # are gone, and the model could only reword the same unbacked number.
+            settled = _settled_in_words(session, conversation, text, buyer_text, traces)
+            problems = _problems(text, _allowed_amounts(session, conversation, traces), paid, settled)
+            if problems:
                 nudged = True
+                logger.warning("Model reply sent back: %s", "; ".join(problems))
                 messages.append({"role": "assistant", "content": text})
-                messages.append(
-                    {
-                        "role": "user",
-                        "content": "(system) The buyer named a price and you answered without deciding it. Call "
-                        "evaluate_offer with the sku and their offer in whole naira, then say only what it returns.",
-                    }
-                )
+                messages.append({"role": "user", "content": _nudge(problems, settled)})
                 text = None
                 continue
             break
@@ -767,12 +794,11 @@ def run_agent(session: Session, conversation: Conversation, model: ChatModel, se
         text = strip_thinking(str(model.chat(messages, None).get("content") or ""))
 
     allowed = _allowed_amounts(session, conversation, traces)
-    paid = _has_paid_order(session, conversation)
     # Once nudged, a model that still answers in prose keeps its words: the fallback would say less than it does.
     settled = _settled_in_words(session, conversation, text, buyer_text, traces) if text and not nudged else []
     problems = _problems(text, allowed, paid, settled) if text else []
     used_fallback = False
-    if problems:
+    if problems and not nudged:  # the tool rounds ran out before the nudge could be sent
         logger.warning("Model reply rejected: %s", "; ".join(problems))
         messages.append({"role": "assistant", "content": text})
         messages.append(
@@ -786,7 +812,10 @@ def run_agent(session: Session, conversation: Conversation, model: ChatModel, se
         settled = _settled_in_words(session, conversation, text, buyer_text, traces) if text and not nudged else []
         problems = _problems(text, allowed, paid, settled) if text else []
     if not text or problems:
-        text, used_fallback = fallback_reply(traces, buyer_text, toolbox.owner), True
+        # With nothing decided this turn, restate the chat's latest server decision (a counter, a quote, the
+        # bank details) rather than promise an answer nobody is going to send.
+        basis = traces or ([] if paid else _earlier_traces(session, conversation))
+        text, used_fallback = fallback_reply(basis, buyer_text, toolbox.owner), True
 
     return AgentReply(
         text=text,
