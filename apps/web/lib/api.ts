@@ -15,6 +15,7 @@ import {
   type RequestOf,
   type ResponseOf,
   type SimulatorMessageRequest,
+  type SimulatorVoiceRequest,
   type SimulatorPaymentRequest,
   type SignupRequest,
   type SimulatorReceiptRequest,
@@ -93,6 +94,7 @@ const httpApi = {
   getSimulatorShop: () => call(endpoints.getSimulatorShop()),
   getSimulatorConversation: (id: string) => call(endpoints.getSimulatorConversation(id)),
   sendSimulatorMessage: (request: SimulatorMessageRequest) => call(endpoints.sendSimulatorMessage(), request),
+  sendSimulatorVoice: (request: SimulatorVoiceRequest) => call(endpoints.sendSimulatorVoice(), request),
   simulatePayment: (request: SimulatorPaymentRequest) => call(endpoints.simulatePayment(), request),
   sendSimulatorReceipt: (request: SimulatorReceiptRequest) => call(endpoints.sendSimulatorReceipt(), request),
   markOrderPaid: (id: string) => call(endpoints.markOrderPaid(id)),
@@ -137,6 +139,7 @@ const localApi: SowoApi = {
   simulatePayment: (request) =>
     runLocal((s, now) => settlePayment(s, request.reference, request.outcome, now), REPLY_LATENCY_MS),
   sendSimulatorReceipt: needsBackend,
+  sendSimulatorVoice: needsBackend,
   markOrderPaid: needsBackend,
   signup: needsBackend,
   login: needsBackend,
@@ -155,6 +158,15 @@ const localApi: SowoApi = {
 };
 
 export const api: SowoApi = USING_MOCK ? localApi : httpApi;
+
+/** A voice note's audio, as a Blob to play from an object URL (Safari won't stream it through the proxy). */
+export async function fetchVoiceAudio(conversationId: string, messageId: string, simulator: boolean): Promise<Blob> {
+  const base = simulator ? "/simulator/conversations" : "/conversations";
+  const path = `${base}/${encodeURIComponent(conversationId)}/messages/${encodeURIComponent(messageId)}/audio`;
+  const response = await fetch(`${API_URL}${path}`, { cache: "no-store" });
+  if (!response.ok) throw new ApiRequestError(response.status, "Couldn't load the voice note");
+  return response.blob();
+}
 
 /** Reset the in-browser demo data. Does nothing against a real backend. */
 export function resetDemoData() {

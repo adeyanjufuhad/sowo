@@ -18,6 +18,14 @@ class ConversationResponse(BaseModel):
     preview: str
 
 
+class MessageVoiceResponse(BaseModel):
+    """On a buyer's voice note. `body` is the transcript once status is TRANSCRIBED."""
+
+    status: Literal["PENDING", "TRANSCRIBED", "FAILED", "TOO_LONG"]
+    durationMs: int | None = None
+    hasAudio: bool
+
+
 class MessageResponse(BaseModel):
     id: str
     conversationId: str
@@ -25,6 +33,7 @@ class MessageResponse(BaseModel):
     body: str
     createdAt: str
     toolCalls: list[ToolCallResponse] | None = None
+    voice: MessageVoiceResponse | None = None
 
 
 class ListConversationsResponse(BaseModel):
@@ -129,6 +138,13 @@ class SimulatorPaymentRequest(BaseModel):
 class SimulatorPaymentResponse(BaseModel):
     order: OrderResponse
     messages: list[MessageResponse]
+
+
+class SimulatorVoiceRequest(BaseModel):
+    conversationId: str | None = None
+    customerName: str | None = None
+    audio: str = Field(min_length=1)  # base64 of the recording
+    mimeType: str = Field(min_length=1, max_length=100)
 
 
 class SimulatorReceiptRequest(BaseModel):
