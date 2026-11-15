@@ -24,6 +24,7 @@ from app.models import (
     Order,
     PaymentMethod,
     Vendor,
+    VoiceStatus,
     utc_now,
 )
 from app.services import guard, payments, whatsapp
@@ -32,6 +33,7 @@ from app.services.money import format_naira
 from app.services.ollama import ChatModel, OllamaError
 from app.services.orders import mark_order_paid
 from app.services.vendors import owner_name, vendor_for_number
+from app.services.voice import notes
 from app.services.whatsapp import InboundMessage
 
 logger = logging.getLogger(__name__)
@@ -84,6 +86,7 @@ def add_message(
     *,
     tool_calls: list[dict[str, Any]] | None = None,
     whatsapp_message_id: str | None = None,
+    voice: bool = False,
 ) -> Message:
     """Save a message, stamped no earlier than the chat's latest one so the order never flips."""
     created_at = utc_now()
@@ -98,6 +101,7 @@ def add_message(
         tool_calls=tool_calls or None,
         whatsapp_message_id=whatsapp_message_id,
         created_at=created_at,
+        **({"kind": "voice", "voice_status": VoiceStatus.PENDING.value} if voice else {}),
     )
     session.add(message)
     session.commit()
@@ -203,6 +207,37 @@ def submit_simulated_receipt(
     return messages
 
 
+def reply_cant_hear(
+    session: Session, conversation: Conversation, status: VoiceStatus, settings: Settings, *, deliver: bool
+) -> Message | None:
+    """A voice note Sowo couldn't use: ask the buyer, in their style, to type it. The chat carries on as normal."""
+    if not should_reply(conversation):
+        return None
+    text = notes.cant_hear_reply(
+        status, pidgin=_is_pidgin(session, conversation), max_seconds=settings.voice_max_seconds
+    )
+    reply = add_message(session, conversation, MessageRole.AI, text)
+    if deliver:
+        send_to_buyer(vendor_of(session, conversation), conversation, reply.text)
+    return reply
+
+
+def _hear_whatsapp_voice(session: Session, message: Message, inbound: InboundMessage, settings: Settings) -> VoiceStatus:
+    try:
+        media = whatsapp.fetch_media(inbound.media_id, settings.voice_max_bytes)
+    except whatsapp.MediaTooLarge:
+        media, too_large = None, True
+    else:
+        too_large = False
+    if media is None:
+        status = VoiceStatus.TOO_LONG if too_large else VoiceStatus.FAILED
+        message.voice_status = status.value
+        session.commit()
+        return status
+    audio, mime = media
+    return notes.hear(session, message, audio, mime or inbound.mime_type, settings)
+
+
 def handle_inbound(session: Session, inbound: InboundMessage, model: ChatModel, settings: Settings) -> None:
     """One WhatsApp message from a buyer."""
     vendor = vendor_for_number(session, inbound.phone_number_id)
@@ -211,16 +246,24 @@ def handle_inbound(session: Session, inbound: InboundMessage, model: ChatModel, 
         logger.warning("Dropping a WhatsApp message sent to the unknown business number %r", inbound.phone_number_id)
         return
     conversation = get_or_create_conversation(session, vendor, inbound.phone, inbound.name)
-    text = inbound.text if inbound.kind == "text" else f"[{inbound.kind} message]"
+    voice = inbound.kind == "audio"
+    text = inbound.text if inbound.kind == "text" else "" if voice else f"[{inbound.kind} message]"
     try:
-        add_message(session, conversation, MessageRole.BUYER, text, whatsapp_message_id=inbound.id)
+        message = add_message(
+            session, conversation, MessageRole.BUYER, text, whatsapp_message_id=inbound.id, voice=voice
+        )
     except IntegrityError:
         session.rollback()
         logger.info("Ignoring a message WhatsApp delivered twice")
         return
     whatsapp.mark_read(vendor.whatsapp_phone_number_id, inbound.id)
 
-    if inbound.kind != "text":
+    if voice:
+        status = _hear_whatsapp_voice(session, message, inbound, settings)
+        if status != VoiceStatus.TRANSCRIBED:
+            reply_cant_hear(session, conversation, status, settings, deliver=True)
+            return
+    elif inbound.kind != "text":
         # A picture or document while a bank transfer is waiting is the buyer's receipt.
         order = payments.open_manual_order(session, conversation.id) if inbound.kind in RECEIPT_KINDS else None
         if order is not None:
@@ -237,7 +280,7 @@ def handle_inbound(session: Session, inbound: InboundMessage, model: ChatModel, 
         return
     if settings.whatsapp_echo_mode:  # for checking the webhook wiring without a model
         if should_reply(conversation):
-            reply = add_message(session, conversation, MessageRole.AI, f"Echo: {inbound.text}")
+            reply = add_message(session, conversation, MessageRole.AI, f"Echo: {message.text}")
             send_to_buyer(vendor, conversation, reply.text)
         return
     answer_buyer(session, conversation, model, settings, deliver=True)

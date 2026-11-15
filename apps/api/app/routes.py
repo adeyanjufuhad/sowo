@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -17,6 +17,7 @@ from app.models import (
     OrderStatus,
     Product,
     Vendor,
+    VoiceNote,
 )
 from app.routes_catalog import product_response
 from app.schemas import (
@@ -27,6 +28,7 @@ from app.schemas import (
     ListOrdersResponse,
     ListProductsResponse,
     MessageResponse,
+    MessageVoiceResponse,
     OrderItemResponse,
     OrderResponse,
     VendorReplyRequest,
@@ -66,8 +68,16 @@ def _conversation_response(session: Session, conversation: Conversation) -> Conv
         platform="SIMULATOR" if conversation.is_simulator else "WHATSAPP",
         status=_api_status(conversation.status),
         lastMessageAt=_iso8601(latest_message.created_at if latest_message else conversation.created_at),
-        preview=latest_message.text if latest_message else "",
+        preview=_preview(latest_message),
     )
+
+
+def _preview(message: Message | None) -> str:
+    if message is None:
+        return ""
+    if message.kind == "voice" and not message.text:
+        return "🎤 Voice note"
+    return message.text
 
 
 def _scrub_tool_value(value: Any) -> Any:
@@ -97,6 +107,31 @@ def _message_response(message: Message) -> MessageResponse:
         body=message.text,
         createdAt=_iso8601(message.created_at),
         toolCalls=tool_calls,
+        voice=_voice_response(message),
+    )
+
+
+def _voice_response(message: Message) -> MessageVoiceResponse | None:
+    if message.kind != "voice":
+        return None
+    note = message.voice_note
+    return MessageVoiceResponse(
+        status=message.voice_status or "PENDING",
+        durationMs=note.duration_ms if note else None,
+        hasAudio=note is not None,
+    )
+
+
+def voice_audio(session: Session, conversation: Conversation, message_id: str) -> Response:
+    """The audio of a voice note in this conversation. Buyers' voices are private: never cached by shared caches."""
+    message = session.get(Message, message_id)
+    note = session.get(VoiceNote, message.voice_note_id) if message and message.voice_note_id else None
+    if message is None or message.conversation_id != conversation.id or note is None:
+        raise _not_found("Voice note", message_id)
+    return Response(
+        content=note.data,
+        media_type=note.mime_type,
+        headers={"Cache-Control": "private, max-age=3600", "X-Content-Type-Options": "nosniff"},
     )
 
 
@@ -146,6 +181,13 @@ def list_messages(conversation_id: str, session: SessionDependency, vendor: Curr
         conversation=_conversation_response(session, conversation),
         messages=[_message_response(message) for message in messages],
     )
+
+
+@router.get("/conversations/{conversation_id}/messages/{message_id}/audio")
+def get_voice_note_audio(
+    conversation_id: str, message_id: str, session: SessionDependency, vendor: CurrentVendor
+) -> Response:
+    return voice_audio(session, owned_conversation(session, vendor, conversation_id), message_id)
 
 
 @router.post("/conversations/{conversation_id}/pause", response_model=ConversationEnvelope)

@@ -92,6 +92,10 @@ Everything comes from environment variables or `.env`. See [`.env.example`](.env
 | `WHATSAPP_ACCESS_TOKEN` | | The platform's token for sending through the Cloud API. Each vendor's own number is stored on their row, see [Shop settings](#shop-settings) |
 | `WHATSAPP_GRAPH_VERSION` | `v23.0` | Graph API version. Meta retires old ones, so check theirs |
 | `WHATSAPP_ECHO_MODE` | `false` | Reply with `Echo: <text>` and skip the model, to test the webhook wiring |
+| `STT_PROVIDER` | `groq` | Speech to text for buyers' voice notes: `groq` (Whisper on Groq) or `none` |
+| `STT_API_KEY` | _(empty)_ | Groq key for Whisper. Empty reuses `LLM_API_KEY` when `LLM_BASE_URL` is Groq's; with no key, voice notes get a polite "please type it" |
+| `STT_MODEL` | `whisper-large-v3-turbo` | The Whisper model on Groq |
+| `VOICE_MAX_SECONDS`, `VOICE_MAX_BYTES` | `120`, `3000000` | Longer or bigger voice notes aren't transcribed; the buyer is asked to type or send a shorter one |
 | `MANUAL_PAYMENT_HOLD_MINUTES` | `180` | How long a bank-transfer order holds stock. Longer than `STOCK_HOLD_MINUTES` because transfers and checking a bank app take a while |
 | `PAYSTACK_SECRET_KEY` | | Test or live secret key. Also verifies Paystack's webhook signature |
 | `PAYSTACK_CALLBACK_URL` | | Where the buyer lands after paying (optional) |

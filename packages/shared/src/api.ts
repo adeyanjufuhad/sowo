@@ -50,6 +50,17 @@ export interface Message {
   createdAt: IsoDateString;
   /** Present on AI messages that used tools, in the order they ran. */
   toolCalls?: ToolCall[];
+  /** Present on a buyer's voice note. `body` is then its transcript (empty until it is heard). */
+  voice?: MessageVoice | null;
+}
+
+export type VoiceStatus = "PENDING" | "TRANSCRIBED" | "FAILED" | "TOO_LONG";
+
+export interface MessageVoice {
+  status: VoiceStatus;
+  durationMs?: number | null;
+  /** The audio can be played from the message's /audio endpoint. */
+  hasAudio: boolean;
 }
 
 export interface Product {
@@ -332,6 +343,15 @@ export interface SimulatorPaymentResponse {
   messages: Message[];
 }
 
+/** A voice note recorded on /try. The response is the same as sendSimulatorMessage's. */
+export interface SimulatorVoiceRequest {
+  conversationId?: string;
+  customerName?: string;
+  /** Base64 of the recording. */
+  audio: string;
+  mimeType: string;
+}
+
 export interface SimulatorReceiptRequest {
   reference: string;
 }
@@ -478,6 +498,8 @@ export const endpoints = {
       "POST",
       "/simulator/messages",
     ),
+  sendSimulatorVoice: () =>
+    endpoint<SimulatorVoiceRequest, SimulatorMessageResponse>("POST", "/simulator/voice"),
   /** No sign-in. 404 unless it is a simulator chat. */
   getSimulatorConversation: (id: string) =>
     endpoint<void, SimulatorConversationResponse>("GET", `/simulator/conversations/${enc(id)}`),

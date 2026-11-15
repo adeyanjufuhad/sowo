@@ -52,6 +52,13 @@ class PaymentMethod(str, enum.Enum):
     MANUAL = "MANUAL"
 
 
+class VoiceStatus(str, enum.Enum):
+    PENDING = "PENDING"  # saved, being downloaded or transcribed
+    TRANSCRIBED = "TRANSCRIBED"  # the message text is the transcript
+    FAILED = "FAILED"  # couldn't be heard; the buyer was asked to type
+    TOO_LONG = "TOO_LONG"  # over VOICE_MAX_SECONDS or VOICE_MAX_BYTES
+
+
 class OfferDecision(str, enum.Enum):
     ACCEPT = "ACCEPT"
     COUNTER = "COUNTER"
@@ -166,7 +173,25 @@ class Message(Base):
     tool_calls: Mapped[list[dict[str, object]] | None] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=func.now())
     whatsapp_message_id: Mapped[str | None] = mapped_column(String(128), unique=True)
+    # "voice" for a buyer's voice note: `text` then holds the transcript (empty until it is heard).
+    kind: Mapped[str] = mapped_column(String(16), nullable=False, default="text", server_default="text")
+    voice_status: Mapped[str | None] = mapped_column(String(16))
+    voice_note_id: Mapped[str | None] = mapped_column(ForeignKey("voice_notes.id"))
     conversation: Mapped[Conversation] = relationship(back_populates="messages")
+    voice_note: Mapped["VoiceNote | None"] = relationship()
+
+
+class VoiceNote(Base):
+    """The audio of a buyer's voice note. In the database, like product pictures, because the free hosts this runs on
+    lose their disk on every deploy."""
+
+    __tablename__ = "voice_notes"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    conversation_id: Mapped[str] = mapped_column(ForeignKey("conversations.id"), nullable=False, index=True)
+    mime_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    data: Mapped[bytes] = mapped_column(LargeBinary, nullable=False, deferred=True)  # only read to play it
+    duration_ms: Mapped[int | None] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=func.now())
 
 
 def new_quote_id() -> str:

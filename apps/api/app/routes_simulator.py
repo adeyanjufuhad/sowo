@@ -4,18 +4,28 @@ Simulator chats are flagged (is_simulator) and never send anything to WhatsApp. 
 in for Paystack's webhook, and it can only touch simulator orders, never a real buyer's.
 """
 
+import base64
+import binascii
 from typing import Annotated
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.db import get_db
 from app.deps import ChatModelDependency
-from app.models import Conversation, Message, MessageRole, Order, OrderStatus, PaymentMethod
-from app.routes import _conversation_response, _message_response, _order_response
+from app.models import (
+    Conversation,
+    Message,
+    MessageRole,
+    Order,
+    OrderStatus,
+    PaymentMethod,
+    VoiceStatus,
+)
+from app.routes import _conversation_response, _message_response, _order_response, voice_audio
 from app.schemas import (
     SimulatorConversationResponse,
     SimulatorMessageRequest,
@@ -25,10 +35,12 @@ from app.schemas import (
     SimulatorReceiptRequest,
     SimulatorReceiptResponse,
     SimulatorShopResponse,
+    SimulatorVoiceRequest,
 )
 from app.services import flow, payments
 from app.services.orders import expire_holds, mark_order_paid
 from app.services.vendors import demo_vendor, owner_name
+from app.services.voice import notes
 
 SessionDependency = Annotated[Session, Depends(get_db)]
 
@@ -50,6 +62,34 @@ def get_simulator_shop(session: SessionDependency) -> SimulatorShopResponse:
     return SimulatorShopResponse(businessName=vendor.name, ownerName=owner_name(vendor))
 
 
+def _simulator_conversation(session: Session, conversation_id: str | None, customer_name: str | None) -> Conversation:
+    """The given simulator chat, or a new one with the demo shop."""
+    if conversation_id:
+        conversation = session.get(Conversation, conversation_id)
+        if conversation is None or not conversation.is_simulator:
+            raise HTTPException(status_code=404, detail=f"Conversation {conversation_id} not found")
+        return conversation
+    vendor = demo_vendor(session, get_settings())
+    if vendor is None:
+        raise HTTPException(status_code=409, detail="The demo shop does not exist; run python -m app.seed_demo")
+    conversation = Conversation(
+        vendor_id=vendor.id,
+        customer_phone=f"sim-{uuid4().hex[:10]}",
+        customer_name=(customer_name or "Demo buyer").strip()[:120] or "Demo buyer",
+        is_simulator=True,
+    )
+    session.add(conversation)
+    session.commit()
+    return conversation
+
+
+def _exchange(session: Session, conversation: Conversation, messages: list[Message]) -> SimulatorMessageResponse:
+    return SimulatorMessageResponse(
+        conversation=_conversation_response(session, conversation),
+        messages=[_message_response(message) for message in messages],
+    )
+
+
 @router.post("/simulator/messages", response_model=SimulatorMessageResponse, response_model_exclude_none=True)
 def send_simulator_message(
     payload: SimulatorMessageRequest, session: SessionDependency, model: ChatModelDependency
@@ -57,31 +97,42 @@ def send_simulator_message(
     body = payload.body.strip()
     if not body:
         raise HTTPException(status_code=400, detail="body must not be empty")
-    if payload.conversationId:
-        conversation = session.get(Conversation, payload.conversationId)
-        if conversation is None or not conversation.is_simulator:
-            raise HTTPException(status_code=404, detail=f"Conversation {payload.conversationId} not found")
-    else:
-        vendor = demo_vendor(session, get_settings())
-        if vendor is None:
-            raise HTTPException(status_code=409, detail="The demo shop does not exist; run python -m app.seed_demo")
-        conversation = Conversation(
-            vendor_id=vendor.id,
-            customer_phone=f"sim-{uuid4().hex[:10]}",
-            customer_name=(payload.customerName or "Demo buyer").strip()[:120] or "Demo buyer",
-            is_simulator=True,
-        )
-        session.add(conversation)
-        session.commit()
-
+    conversation = _simulator_conversation(session, payload.conversationId, payload.customerName)
     messages = [flow.add_message(session, conversation, MessageRole.BUYER, body)]
     reply = flow.answer_buyer(session, conversation, model, get_settings(), deliver=False)
     if reply is not None:
         messages.append(reply)
-    return SimulatorMessageResponse(
-        conversation=_conversation_response(session, conversation),
-        messages=[_message_response(message) for message in messages],
-    )
+    return _exchange(session, conversation, messages)
+
+
+@router.post("/simulator/voice", response_model=SimulatorMessageResponse, response_model_exclude_none=True)
+def send_simulator_voice(
+    payload: SimulatorVoiceRequest, session: SessionDependency, model: ChatModelDependency
+) -> SimulatorMessageResponse:
+    """A voice note recorded on /try. It takes the same path as one from WhatsApp, minus the download."""
+    settings = get_settings()
+    if len(payload.audio) > settings.voice_max_bytes * 4 // 3 + 4:  # base64 is a third bigger than the audio
+        raise HTTPException(status_code=413, detail="That recording is too big")
+    try:
+        audio = base64.b64decode(payload.audio, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise HTTPException(status_code=400, detail="audio must be base64") from exc
+    conversation = _simulator_conversation(session, payload.conversationId, payload.customerName)
+    message = flow.add_message(session, conversation, MessageRole.BUYER, "", voice=True)
+    status = notes.hear(session, message, audio, payload.mimeType, settings)
+    if status == VoiceStatus.TRANSCRIBED:
+        reply = flow.answer_buyer(session, conversation, model, settings, deliver=False)
+    else:
+        reply = flow.reply_cant_hear(session, conversation, status, settings, deliver=False)
+    return _exchange(session, conversation, [message] if reply is None else [message, reply])
+
+
+@router.get("/simulator/conversations/{conversation_id}/messages/{message_id}/audio")
+def get_simulator_voice_audio(conversation_id: str, message_id: str, session: SessionDependency) -> Response:
+    conversation = session.get(Conversation, conversation_id)
+    if conversation is None or not conversation.is_simulator:
+        raise HTTPException(status_code=404, detail=f"Conversation {conversation_id} not found")
+    return voice_audio(session, conversation, message_id)
 
 
 @router.get(

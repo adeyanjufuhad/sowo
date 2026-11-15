@@ -31,6 +31,8 @@ class InboundMessage:
     name: str
     kind: str  # "text", "image", "audio", ...
     text: str  # empty unless kind == "text"
+    media_id: str = ""  # for audio, image, document...: what fetch_media downloads
+    mime_type: str = ""
 
 
 @dataclass(frozen=True)
@@ -95,6 +97,7 @@ def parse_inbound(payload: dict[str, Any]) -> list[InboundMessage]:
                     continue
                 kind = str(raw.get("type") or "unknown")
                 body = (raw.get("text") or {}).get("body", "") if kind == "text" else ""
+                media = raw.get(kind) if kind != "text" and isinstance(raw.get(kind), dict) else {}
                 messages.append(
                     InboundMessage(
                         id=str(raw["id"]),
@@ -103,6 +106,8 @@ def parse_inbound(payload: dict[str, Any]) -> list[InboundMessage]:
                         name=str(names.get(raw["from"]) or ""),
                         kind=kind,
                         text=str(body),
+                        media_id=str(media.get("id") or ""),
+                        mime_type=str(media.get("mime_type") or ""),
                     )
                 )
     return messages
@@ -151,6 +156,49 @@ def send_whatsapp_text(phone_number_id: str | None, phone: str, text: str) -> bo
     if sent:
         logger.info("WhatsApp accepted a reply for %s", _mask(phone))
     return sent
+
+
+class MediaTooLarge(Exception):
+    """The file is bigger than we are willing to download."""
+
+
+# Meta hands out download links on its own hosts only; anything else is not followed.
+_MEDIA_HOSTS = ("fbsbx.com", "facebook.com", "whatsapp.net")
+
+
+def fetch_media(media_id: str, max_bytes: int) -> tuple[bytes, str] | None:
+    """Download a buyer's media file: ask the Graph API for its link, then fetch it with the platform's token.
+
+    Returns (bytes, mime type), or None if it can't be had. Raises MediaTooLarge before or while downloading anything
+    over `max_bytes`, so a huge file never fills memory.
+    """
+    settings = get_settings()
+    if not media_id or not settings.whatsapp_access_token:
+        return None
+    headers = {"Authorization": f"Bearer {settings.whatsapp_access_token}"}
+    try:
+        with httpx.Client(timeout=30.0, transport=_transport_override) as client:
+            info = client.get(f"https://graph.facebook.com/{settings.whatsapp_graph_version}/{media_id}", headers=headers)
+            info.raise_for_status()
+            meta = info.json()
+            url = httpx.URL(str(meta.get("url") or ""))
+            if url.scheme != "https" or not any(url.host == h or url.host.endswith("." + h) for h in _MEDIA_HOSTS):
+                logger.warning("Refusing a WhatsApp media link on host %r", url.host)
+                return None
+            size = meta.get("file_size")
+            if isinstance(size, int | str) and str(size).isdigit() and int(size) > max_bytes:
+                raise MediaTooLarge
+            data = bytearray()
+            with client.stream("GET", url, headers=headers) as download:
+                download.raise_for_status()
+                for chunk in download.iter_bytes():
+                    data.extend(chunk)
+                    if len(data) > max_bytes:
+                        raise MediaTooLarge
+    except (httpx.HTTPError, ValueError, AttributeError) as exc:
+        logger.warning("WhatsApp media %s could not be downloaded: %s", media_id, exc)
+        return None
+    return bytes(data), str(meta.get("mime_type") or "")
 
 
 def mark_read(phone_number_id: str | None, message_id: str) -> bool:

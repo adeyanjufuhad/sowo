@@ -7,6 +7,7 @@ import { api, ApiRequestError, USING_MOCK } from "@/lib/api";
 import { initials, relativeTime, watTime } from "@/lib/format";
 import { summarizeToolCall } from "@/lib/tool-calls";
 import { cn } from "@/lib/utils";
+import { VoiceNote } from "../voice/voice-note";
 import { ConversationBadge, FulfillmentBadge, PaymentBadge } from "./badges";
 import { MarkPaid } from "./mark-paid";
 import { usePoll } from "./use-poll";
@@ -232,6 +233,9 @@ export function ChatThread({
                 <span className={cn("mb-0.5 block text-xs font-semibold", m.sender === "VENDOR" ? "text-white/80" : fromBuyer ? "text-muted" : "text-accent-strong")}>
                   {fromBuyer ? current.customerName : m.sender === "AI" ? "Sowo" : "You"}
                 </span>
+                {m.voice ? (
+                  <VoiceNote voice={m.voice} conversationId={current.id} messageId={m.id} simulator={false} />
+                ) : null}
                 {m.body}
                 <span className={cn("mt-1 block text-right text-[11px]", m.sender === "VENDOR" ? "text-white/70" : "text-muted")}>
                   {watTime(m.createdAt)}

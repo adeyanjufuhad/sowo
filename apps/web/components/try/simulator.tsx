@@ -6,14 +6,18 @@ import {
   type Message,
   type Order,
   type RequestPaymentCall,
+  type SimulatorMessageResponse,
   type SimulatorShop,
 } from "@sowo/shared";
 import { ArrowUp, CheckCheck, Landmark, LayoutDashboard, LockKeyhole, RotateCcw } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useId, useRef, useState, type FormEvent } from "react";
-import { api, ApiRequestError } from "@/lib/api";
+import { useCallback, useEffect, useId, useRef, useState, useSyncExternalStore, type FormEvent } from "react";
+import { api, ApiRequestError, USING_MOCK } from "@/lib/api";
 import { watTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { blobToBase64 } from "@/lib/voice";
+import { RecordButton } from "../voice/record-button";
+import { VoiceNote } from "../voice/voice-note";
 import { ToolPanel } from "./tool-panel";
 
 const CONVERSATION_KEY = "sowo.try.conversation";
@@ -40,6 +44,10 @@ function storeId(id: string | null) {
 }
 
 /** "Adeyanju's Store" -> "AS", for the chat's avatar. */
+const neverChanges = () => () => {};
+const browserCanRecord = () =>
+  !USING_MOCK && typeof MediaRecorder !== "undefined" && !!navigator.mediaDevices?.getUserMedia;
+
 function initials(name: string): string {
   const letters = name
     .split(/\s+/)
@@ -76,6 +84,8 @@ export function Simulator() {
   const [tab, setTab] = useState<"chat" | "tools">("chat");
   // The shop the assistant really sells for, so the chat shows the same name as its dashboard.
   const [shop, setShop] = useState<SimulatorShop | null>(null);
+  // Voice notes need the real backend (to transcribe) and a browser that can record. False while server-rendering.
+  const canRecord = useSyncExternalStore(neverChanges, browserCanRecord, () => false);
   const threadRef = useRef<HTMLDivElement>(null);
   const pendingSeq = useRef(0);
   const inputId = useId();
@@ -134,33 +144,48 @@ export function Simulator() {
     if (thread) thread.scrollTo({ top: thread.scrollHeight, behavior: "smooth" });
   }, [messages.length, sending]);
 
-  async function send(text: string) {
-    const body = text.trim();
-    if (!body || sending) return;
+  /** Show the buyer's message straight away, then swap it for what the server saved, plus Sowo's reply. */
+  async function exchange(optimistic: Omit<Message, "id" | "conversationId" | "sender" | "createdAt">, request: () => Promise<SimulatorMessageResponse>) {
     setError(null);
     setSending(true);
-    setDraft("");
-    const optimistic: Message = {
+    const pending: Message = {
+      ...optimistic,
       id: `pending-${(pendingSeq.current += 1)}`,
       conversationId: conversation?.id ?? "pending",
       sender: "BUYER",
-      body,
       createdAt: new Date().toISOString(),
     };
-    setMessages((prev) => [...prev, optimistic]);
+    setMessages((prev) => [...prev, pending]);
     try {
-      const res = await api.sendSimulatorMessage({ conversationId: conversation?.id, body });
+      const res = await request();
       setConversation(res.conversation);
       storeId(res.conversation.id);
-      setMessages((prev) => [...prev.filter((m) => m.id !== optimistic.id), ...res.messages]);
+      setMessages((prev) => [...prev.filter((m) => m.id !== pending.id), ...res.messages]);
       if (res.messages.some(paymentCall)) await refreshOrders(res.conversation.id);
+      return true;
     } catch (err) {
-      setMessages((prev) => prev.filter((m) => m.id !== optimistic.id));
-      setDraft(body);
+      setMessages((prev) => prev.filter((m) => m.id !== pending.id));
       setError(err instanceof ApiRequestError ? err.message : "Couldn't send that. Check your connection and try again.");
+      return false;
     } finally {
       setSending(false);
     }
+  }
+
+  async function send(text: string) {
+    const body = text.trim();
+    if (!body || sending) return;
+    setDraft("");
+    const sent = await exchange({ body }, () => api.sendSimulatorMessage({ conversationId: conversation?.id, body }));
+    if (!sent) setDraft(body);
+  }
+
+  async function sendVoice(audio: Blob, mimeType: string) {
+    if (sending) return;
+    const encoded = await blobToBase64(audio);
+    await exchange({ body: "", voice: { status: "PENDING", hasAudio: false } }, () =>
+      api.sendSimulatorVoice({ conversationId: conversation?.id, audio: encoded, mimeType }),
+    );
   }
 
   async function pay(reference: string, outcome: "SUCCESS" | "FAILED") {
@@ -271,6 +296,15 @@ export function Simulator() {
                 >
                   <span className="sr-only">{mine ? "You: " : vendor ? "" : "Sowo: "}</span>
                   {vendor ? <span className="mb-0.5 block text-xs font-semibold text-accent-strong">{Owner}</span> : null}
+                  {message.voice ? (
+                    <VoiceNote
+                      voice={message.voice}
+                      conversationId={message.conversationId}
+                      messageId={message.id}
+                      simulator
+                      onAccent={mine}
+                    />
+                  ) : null}
                   {body}
                   <span className={cn("mt-1 flex items-center justify-end gap-1 text-[11px]", mine ? "text-white/70" : "text-muted")}>
                     {watTime(message.createdAt)}
@@ -428,6 +462,9 @@ export function Simulator() {
             autoComplete="off"
             className="h-11 min-w-0 flex-1 rounded-full bg-paper px-4 text-base ring-1 ring-line outline-none placeholder:text-muted focus-visible:ring-2 focus-visible:ring-accent-strong"
           />
+          {canRecord && !draft.trim() ? (
+            <RecordButton disabled={sending} onRecorded={(audio, type) => void sendVoice(audio, type)} onError={setError} />
+          ) : null}
           <button
             type="submit"
             aria-label="Send"

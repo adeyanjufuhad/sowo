@@ -70,6 +70,15 @@ class Settings(BaseSettings):
     # takes Paystack or bank transfers, and their bank details and alert phone, live on the vendor's row.)
     manual_payment_hold_minutes: int = Field(default=180, ge=1)
 
+    # Voice notes from buyers are transcribed and then answered like typed text. "groq" runs Whisper on Groq;
+    # "none" turns voice notes off (buyers are asked to type). With no key, voice notes are off too.
+    stt_provider: Literal["groq", "none"] = "groq"
+    # Empty means: reuse LLM_API_KEY when LLM_BASE_URL is Groq's, so one Groq key covers both.
+    stt_api_key: str = ""
+    stt_model: str = "whisper-large-v3-turbo"
+    voice_max_seconds: int = Field(default=120, ge=1)
+    voice_max_bytes: int = Field(default=3_000_000, ge=1)
+
     # The demo shop that the unauthenticated /simulator endpoints talk to.
     simulator_vendor_name: str = "Ada's Footwear"
 

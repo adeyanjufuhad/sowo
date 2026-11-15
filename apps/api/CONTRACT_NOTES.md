@@ -82,3 +82,12 @@ New tables: `quotes` (a priced basket the model was shown; `request_payment` tur
 - **`PATCH /vendor/settings`** accepts `businessName` (at most 120 characters, spaces collapsed). Blank or `null` is a `400`; another shop's name is a `409`. `GET /vendor/settings` and `GET /auth/me` return the new name. Shared type: `VendorSettingsUpdate.businessName`.
 - **New:** `GET /simulator/shop` (no sign-in; `404` when the simulator is off, `409` if the demo shop doesn't exist) returns `{ businessName, ownerName }`, where `ownerName` falls back to the business name as the assistant's does. The /try page shows these instead of a fixed "Ada's Footwear". Shared type `SimulatorShop`; endpoint `getSimulatorShop`.
 - **The demo shop is remembered.** `SIMULATOR_VENDOR_NAME` finds the shop by name the first time and stores that setting on it (`vendors.simulator_key`, unique, migration `0007`). After that the shop can rename itself and /try keeps talking to it, and a new shop signing up with the old name doesn't take the demo over. Changing `SIMULATOR_VENDOR_NAME` to another existing shop's name moves the demo there.
+
+### Voice notes (Sprint 1)
+
+- **`Message.voice`** (new, optional): `{ status: "PENDING" | "TRANSCRIBED" | "FAILED" | "TOO_LONG", durationMs?, hasAudio }` on a buyer's voice note. `body` is then the transcript, or `""` until (or unless) it is heard. Shared types `MessageVoice` and `VoiceStatus`. Dashboard message lists send `voice: null` on other messages.
+- **`Conversation.preview`** is `"🎤 Voice note"` when the latest message is a voice note with no transcript.
+- **New:** `GET /conversations/{id}/messages/{messageId}/audio` (signed in, the vendor's own chats; `404` otherwise) returns the audio with its stored type and `Cache-Control: private, max-age=3600`.
+- **New:** `POST /simulator/voice` takes `{ conversationId?, customerName?, audio (base64), mimeType }` and answers like `POST /simulator/messages` (`{ conversation, messages }`, the buyer's voice message then Sowo's reply). `400` for bad base64, `413` for a recording over `VOICE_MAX_BYTES`. Endpoint `sendSimulatorVoice`, type `SimulatorVoiceRequest`.
+- **New:** `GET /simulator/conversations/{id}/messages/{messageId}/audio` (no sign-in; simulator chats only).
+- **Tables and columns.** New `voice_notes` (the audio, its type and length); `messages.kind` (`text` or `voice`), `messages.voice_status`, `messages.voice_note_id`. Migration `0008`.
