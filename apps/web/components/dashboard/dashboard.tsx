@@ -109,7 +109,7 @@ export function Dashboard() {
   const now = data?.at ?? 0;
   const selected = conversations.find((c) => c.id === chatId) ?? null;
 
-  const needsYou = conversations.filter((c) => c.status === "NEEDS_ATTENTION").length;
+  const needsYou = conversations.filter((c) => c.status === "NEEDS_ATTENTION" || (c.openFlags ?? 0) > 0).length;
   const active = conversations.filter((c) => c.status === "AI_ACTIVE" || c.status === "HUMAN_TAKEOVER").length;
   const toPack = orders.filter((o) => o.paymentStatus === "PAID" && o.fulfillmentStatus === "PACKAGING").length;
   const paidOrders = orders.filter((o) => o.paymentStatus === "PAID");

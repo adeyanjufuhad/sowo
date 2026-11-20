@@ -97,6 +97,7 @@ def test_list_conversations_uses_contract_shape(dashboard_client: tuple[TestClie
         "status": "AI_ACTIVE",
         "lastMessageAt": conversation["lastMessageAt"],
         "preview": "We have it.",
+        "openFlags": 0,
     }
 
 

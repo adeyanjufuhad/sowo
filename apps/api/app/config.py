@@ -78,6 +78,17 @@ class Settings(BaseSettings):
     stt_model: str = "whisper-large-v3-turbo"
     voice_max_seconds: int = Field(default=120, ge=1)
     voice_max_bytes: int = Field(default=3_000_000, ge=1)
+    # Voice replies: when a buyer sends a voice note, Sowo answers with one (if the vendor has it on). "azure" speaks
+    # with Azure Speech's Nigerian English voices; with no key, or "none", Sowo always answers in text.
+    tts_provider: Literal["azure", "none"] = "azure"
+    azure_speech_key: str = ""
+    azure_speech_region: str = ""
+    tts_voice: str = "en-NG-EzinneNeural"
+
+    # Scam Shield: links in buyers' messages to any other domain (or its subdomains) are flagged for the vendor.
+    shield_allowed_domains: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: ["paystack.com", "paystack.shop"]
+    )
 
     # The demo shop that the unauthenticated /simulator endpoints talk to.
     simulator_vendor_name: str = "Ada's Footwear"
@@ -90,7 +101,7 @@ class Settings(BaseSettings):
         default_factory=lambda: ["http://localhost:3000"]
     )
 
-    @field_validator("cors_origins", mode="before")
+    @field_validator("cors_origins", "shield_allowed_domains", mode="before")
     @classmethod
     def split_cors_origins(cls, value: str | list[str]) -> list[str]:
         if isinstance(value, str):

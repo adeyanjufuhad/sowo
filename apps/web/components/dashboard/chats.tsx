@@ -1,21 +1,25 @@
 "use client";
 
 import { formatNaira, type Conversation, type Order } from "@sowo/shared";
-import { ArrowLeft, ArrowUp, Bot, ChevronDown, MessagesSquare, Package } from "lucide-react";
+import { ArrowLeft, ArrowUp, Bot, ChevronDown, MessagesSquare, Package, ShieldAlert } from "lucide-react";
 import { useEffect, useId, useRef, useState, type FormEvent } from "react";
 import { api, ApiRequestError, USING_MOCK } from "@/lib/api";
 import { initials, relativeTime, watTime } from "@/lib/format";
 import { summarizeToolCall } from "@/lib/tool-calls";
 import { cn } from "@/lib/utils";
 import { VoiceNote } from "../voice/voice-note";
+import { ShieldFlags } from "./shield-flags";
 import { ConversationBadge, FulfillmentBadge, PaymentBadge } from "./badges";
 import { MarkPaid } from "./mark-paid";
 import { usePoll } from "./use-poll";
 
-/** NEEDS_ATTENTION first, then newest. */
+/** Chats that need the vendor: handed over, or flagged by Scam Shield. */
+const needsVendor = (c: Conversation) => c.status === "NEEDS_ATTENTION" || (c.openFlags ?? 0) > 0;
+
+/** Chats that need the vendor first, then newest. */
 function sortChats(conversations: Conversation[]) {
   return [...conversations].sort((a, b) => {
-    const urgent = Number(b.status === "NEEDS_ATTENTION") - Number(a.status === "NEEDS_ATTENTION");
+    const urgent = Number(needsVendor(b)) - Number(needsVendor(a));
     return urgent || b.lastMessageAt.localeCompare(a.lastMessageAt);
   });
 }
@@ -44,7 +48,7 @@ export function ChatList({
   return (
     <ul aria-label="Chats" className="divide-y divide-line">
       {sortChats(conversations).map((c) => {
-        const urgent = c.status === "NEEDS_ATTENTION";
+        const urgent = needsVendor(c);
         const selected = c.id === selectedId;
         return (
           <li key={c.id}>
@@ -77,6 +81,12 @@ export function ChatList({
                 <span className="mt-0.5 block truncate text-sm text-muted">{c.preview}</span>
                 <span className="mt-2 flex flex-wrap items-center gap-1.5">
                   <ConversationBadge status={c.status} />
+                  {c.openFlags ? (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-[#b3261e] px-2 py-0.5 text-xs font-semibold text-white">
+                      <ShieldAlert aria-hidden className="size-3.5" strokeWidth={2} />
+                      Scam Shield{c.openFlags > 1 ? ` · ${c.openFlags}` : ""}
+                    </span>
+                  ) : null}
                   {c.platform === "SIMULATOR" ? (
                     <span className="rounded-full bg-paper px-2 py-0.5 text-[11px] text-muted ring-1 ring-line">Simulator</span>
                   ) : null}
@@ -207,6 +217,17 @@ export function ChatThread({
           {order.paymentStatus === "PAID" ? <FulfillmentBadge status={order.fulfillmentStatus} /> : null}
           <MarkPaid order={order} onPaid={onChanged} className="basis-full" />
         </div>
+      ) : null}
+
+      {data?.flags?.length ? (
+        <ShieldFlags
+          conversationId={current.id}
+          flags={data.flags}
+          onResolved={() => {
+            void refresh();
+            onChanged();
+          }}
+        />
       ) : null}
 
       {/* Messages */}

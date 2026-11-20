@@ -18,6 +18,7 @@ interface Draft {
   bankName: string;
   bankAccountName: string;
   bankAccountNumber: string;
+  voiceReplies: boolean;
 }
 
 function toDraft(settings: VendorSettings): Draft {
@@ -30,6 +31,7 @@ function toDraft(settings: VendorSettings): Draft {
     bankName: settings.bankName ?? "",
     bankAccountName: settings.bankAccountName ?? "",
     bankAccountNumber: settings.bankAccountNumber ?? "",
+    voiceReplies: settings.voiceReplies ?? true,
   };
 }
 
@@ -119,6 +121,7 @@ export function SettingsForm() {
         bankName: manual ? draft.bankName : undefined,
         bankAccountName: manual ? draft.bankAccountName : undefined,
         bankAccountNumber: manual ? draft.bankAccountNumber : undefined,
+        voiceReplies: draft.voiceReplies,
       });
       if (next.businessName !== saved?.businessName) {
         window.dispatchEvent(new CustomEvent(SHOP_RENAMED_EVENT, { detail: next.businessName }));
@@ -292,6 +295,29 @@ export function SettingsForm() {
             </div>
           ) : null}
         </fieldset>
+
+        <section className="rounded-3xl bg-card p-5 ring-1 ring-line sm:p-6">
+          <label className="flex cursor-pointer items-start gap-3">
+            <input
+              type="checkbox"
+              checked={draft.voiceReplies}
+              onChange={(e) => change("voiceReplies", e.target.checked)}
+              className="mt-1 size-4 accent-[var(--color-accent-strong,#c2410c)]"
+            />
+            <span>
+              <span className="block text-base font-semibold">Reply to voice notes with a voice note</span>
+              <span className="block text-sm text-muted">
+                When a buyer sends a voice note, Sowo answers in a Nigerian English voice. Payment details always go
+                as text, so buyers can copy them.
+              </span>
+              {saved.voiceRepliesAvailable ? null : (
+                <span className="mt-1 block text-xs text-muted">
+                  Voice replies aren&apos;t set up on this server yet, so Sowo replies in text for now.
+                </span>
+              )}
+            </span>
+          </label>
+        </section>
 
         {error ? (
           <p role="alert" className="rounded-lg bg-accent-wash px-3 py-2 text-sm text-accent-strong">

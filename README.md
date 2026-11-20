@@ -151,6 +151,7 @@ flowchart LR
     buyer(["Buyer on WhatsApp"]) -->|message| wa["WhatsApp Cloud API"]
     wa -->|webhook| api["apps/api (FastAPI)"]
     api -->|"voice note audio"| stt["Whisper on Groq (speech to text)"]
+    api -->|"approved reply text"| tts["Azure Speech, Nigerian English (text to speech)"]
     stt -->|"transcript"| api
     api -->|"conversation + tool schemas"| llm["Qwen3 via Ollama or a hosted API"]
     llm -->|"tool call + reply text"| api
@@ -186,9 +187,15 @@ The model **never sees the floor price**, not in a prompt, a tool output or a lo
 
 In bank-transfer mode the model also gets `report_payment_sent`: the buyer's "I don transfer" only flags the order and alerts the vendor. It never marks the order paid.
 
+### Scam Shield
+
+Every buyer message (and voice-note transcript) is checked by plain rules in `apps/api/app/services/shield/`, in Pidgin and English. Asking for a code, PIN, BVN or password, or claiming to be from a bank, Paystack, WhatsApp or a delivery company wanting money first, hands the chat to the vendor at once: Sowo sends a short safety message and stops replying. Links to unknown sites, "ship it first, I go pay", repeated failed payments, and a screenshot or "I don pay" while an order is unpaid are flagged for the vendor while the chat carries on. A screenshot never marks anything paid; the dashboard shows "Unverified screenshot. Check your bank app before you pack." Flagged chats sit at the top of the dashboard with a Resolve button. Safe link domains: `SHIELD_ALLOWED_DOMAINS`.
+
 ### Voice notes
 
 Buyers can send voice notes, on WhatsApp or with the 🎤 hold-to-record button on `/try`. The server downloads the audio from Meta (refusing anything over `VOICE_MAX_BYTES` before it downloads), stores it, and has Whisper on Groq write it down. The transcript then goes to the agent exactly like a typed message, so a spoken "abeg do am 35k" still goes through `evaluate_offer` and the reply guard; nothing about money changes. A voice note that can't be heard, is too long, or arrives with no speech-to-text configured gets a polite reply in the buyer's style asking them to type it, and the chat carries on. The dashboard shows each voice note with its transcript and a play button.
+
+**Voice replies.** When a buyer sends a voice note, Sowo answers with one, in Azure Speech's Nigerian English voice (`en-NG-EzinneNeural` by default), sent as a WhatsApp voice note. Only a reply that has passed the guard is spoken; payment details (account numbers, payment links) and anything mentioning a code or PIN always go as text, and if speaking fails the text goes out instead. Vendors can turn voice replies off in settings. Settings: `TTS_PROVIDER`, `AZURE_SPEECH_KEY`, `AZURE_SPEECH_REGION`, `TTS_VOICE`.
 
 The code lives in `apps/api/app/services/voice/`: `stt.py` holds the `SpeechToText` interface (`transcribe(audio, mime) -> Transcript`) and the Groq Whisper provider, so Spitch or Intron can be added without touching the agent; `notes.py` stores and transcribes a note for both WhatsApp and `/try`. Settings: `STT_PROVIDER`, `STT_API_KEY` (empty reuses a Groq `LLM_API_KEY`), `STT_MODEL`, `VOICE_MAX_SECONDS`, `VOICE_MAX_BYTES`. Buyers' audio is sent to Groq to be transcribed.
 
@@ -242,6 +249,7 @@ docs/
 | In-browser and HTTP mock backend | Done |
 | Backend: database models, seed data, floor-price engine, offer storage | Done, unit tested |
 | Backend: contract endpoints, Qwen3 tool loop, WhatsApp webhook, both payment modes, simulator | Done and tested; the hosted copy runs the real model and settles demo orders by bank transfer. A live Meta number and a live Paystack account have never been pointed at it |
+| Voice replies (Azure Speech, Nigerian English) and Scam Shield v1 | Done and tested with Meta and Azure mocked; not yet run against a live Azure key or WhatsApp |
 | Voice notes in (WhatsApp and `/try`, Whisper on Groq) | Done and tested with Meta and Groq mocked; not yet run against a live Groq key or a real WhatsApp voice note |
 | Deployment on free tiers (Render, Vercel, Neon, hosted Qwen3) | Running; see [docs/DEPLOY-RENDER.md](docs/DEPLOY-RENDER.md) |
 
@@ -310,7 +318,7 @@ pnpm test         # tests only
 | `apps/web/lib/mock` | The haggling rules (the ₦35,000 → ₦43,000 → ₦41,000 sale, stepping down, never below the floor, never above the list price), offer and area parsing, the full sale end to end including stock reservation and the receipt, hand-off to the vendor, message ordering, and a check that the floor price never appears in anything buyers or the model can see |
 | `apps/api` | The floor-price engine, offer storage and seed data. Run `pytest` and `ruff check` from `apps/api` |
 
-At the time of writing: 6 tests in `packages/shared`, 49 in `apps/web`, and 441 in `apps/api`, all passing.
+At the time of writing: 6 tests in `packages/shared`, 49 in `apps/web`, and 524 in `apps/api`, all passing.
 
 Every push and pull request also runs these checks in GitHub Actions ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)): lint, typecheck, tests and a production build for the web app, and `ruff` and `pytest` for the API.
 

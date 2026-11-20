@@ -158,6 +158,38 @@ def send_whatsapp_text(phone_number_id: str | None, phone: str, text: str) -> bo
     return sent
 
 
+def send_whatsapp_voice(phone_number_id: str | None, phone: str, audio: bytes, mime_type: str) -> bool:
+    """Upload OGG/Opus audio and send it as a voice note. False (logged) on any failure, so the caller can fall back
+    to text."""
+    if not phone_number_id or not is_configured(phone_number_id):
+        logger.info("WhatsApp not configured for this vendor; not sending a voice note to %s", _mask(phone))
+        return False
+    settings = get_settings()
+    base = f"https://graph.facebook.com/{settings.whatsapp_graph_version}/{phone_number_id}"
+    headers = {"Authorization": f"Bearer {settings.whatsapp_access_token}"}
+    try:
+        with httpx.Client(timeout=30.0, transport=_transport_override) as client:
+            upload = client.post(
+                f"{base}/media",
+                headers=headers,
+                data={"messaging_product": "whatsapp", "type": mime_type},
+                files={"file": ("voice.ogg", audio, mime_type)},
+            )
+            upload.raise_for_status()
+            media_id = upload.json()["id"]
+    except (httpx.HTTPError, ValueError, KeyError, TypeError) as exc:
+        logger.warning("WhatsApp voice upload failed: %s", exc)
+        return False
+    sent = _post(
+        phone_number_id,
+        "messages",
+        {"messaging_product": "whatsapp", "to": phone, "type": "audio", "audio": {"id": str(media_id), "voice": True}},
+    )
+    if sent:
+        logger.info("WhatsApp accepted a voice reply for %s", _mask(phone))
+    return sent
+
+
 class MediaTooLarge(Exception):
     """The file is bigger than we are willing to download."""
 

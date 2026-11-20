@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Response
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -16,8 +16,10 @@ from app.models import (
     OrderItem,
     OrderStatus,
     Product,
+    ShieldFlag,
     Vendor,
     VoiceNote,
+    utc_now,
 )
 from app.routes_catalog import product_response
 from app.schemas import (
@@ -31,10 +33,13 @@ from app.schemas import (
     MessageVoiceResponse,
     OrderItemResponse,
     OrderResponse,
+    ShieldFlagEnvelope,
+    ShieldFlagResponse,
     VendorReplyRequest,
     VendorReplyResponse,
 )
 from app.services.orders import expire_holds
+from app.services.shield.rules import WARNINGS
 from app.services.whatsapp import send_whatsapp_text
 
 router = APIRouter()
@@ -69,6 +74,24 @@ def _conversation_response(session: Session, conversation: Conversation) -> Conv
         status=_api_status(conversation.status),
         lastMessageAt=_iso8601(latest_message.created_at if latest_message else conversation.created_at),
         preview=_preview(latest_message),
+        openFlags=session.scalar(
+            select(func.count(ShieldFlag.id)).where(
+                ShieldFlag.conversation_id == conversation.id, ShieldFlag.resolved_at.is_(None)
+            )
+        )
+        or 0,
+    )
+
+
+def _flag_response(flag: ShieldFlag) -> ShieldFlagResponse:
+    return ShieldFlagResponse(
+        id=flag.id,
+        rule=flag.rule,
+        severity="high" if flag.severity == "high" else "medium",
+        warning=WARNINGS.get(flag.rule, "Check this chat."),
+        evidence=flag.evidence,
+        createdAt=_iso8601(flag.created_at),
+        resolvedAt=_iso8601(flag.resolved_at) if flag.resolved_at else None,
     )
 
 
@@ -177,10 +200,29 @@ def list_messages(conversation_id: str, session: SessionDependency, vendor: Curr
             .order_by(Message.created_at.asc(), Message.id.asc())
         )
     )
+    flags = session.scalars(
+        select(ShieldFlag)
+        .where(ShieldFlag.conversation_id == conversation.id, ShieldFlag.resolved_at.is_(None))
+        .order_by(ShieldFlag.created_at)
+    )
     return ListMessagesResponse(
         conversation=_conversation_response(session, conversation),
         messages=[_message_response(message) for message in messages],
+        flags=[_flag_response(flag) for flag in flags],
     )
+
+
+@router.post("/conversations/{conversation_id}/flags/{flag_id}/resolve", response_model=ShieldFlagEnvelope)
+def resolve_flag(conversation_id: str, flag_id: str, session: SessionDependency, vendor: CurrentVendor) -> ShieldFlagEnvelope:
+    """The vendor has looked. Resolving a flag doesn't turn Sowo back on; Resume does that."""
+    conversation = owned_conversation(session, vendor, conversation_id)
+    flag = session.get(ShieldFlag, flag_id)
+    if flag is None or flag.conversation_id != conversation.id:
+        raise _not_found("Flag", flag_id)
+    if flag.resolved_at is None:
+        flag.resolved_at = utc_now()
+        session.commit()
+    return ShieldFlagEnvelope(flag=_flag_response(flag))
 
 
 @router.get("/conversations/{conversation_id}/messages/{message_id}/audio")

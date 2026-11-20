@@ -38,6 +38,21 @@ export interface Conversation {
   lastMessageAt: IsoDateString;
   /** Short text of the latest message, for the chats list. */
   preview: string;
+  /** Scam Shield flags the vendor hasn't resolved. */
+  openFlags?: number;
+}
+
+/** Scam Shield caught something in a buyer's message. */
+export interface ShieldFlag {
+  id: string;
+  rule: string;
+  severity: "medium" | "high";
+  /** What the vendor should do, in plain words. */
+  warning: string;
+  /** The buyer's words that triggered it. */
+  evidence: string;
+  createdAt: IsoDateString;
+  resolvedAt?: IsoDateString | null;
 }
 
 export type MessageSender = "BUYER" | "AI" | "VENDOR";
@@ -279,6 +294,8 @@ export interface ListConversationsResponse {
 export interface ListMessagesResponse {
   conversation: Conversation;
   messages: Message[];
+  /** Open Scam Shield flags, oldest first. */
+  flags?: ShieldFlag[];
 }
 
 /** Returned by pause and resume. */
@@ -412,6 +429,10 @@ export interface VendorSettings {
   paymentReady: boolean;
   /** Can Sowo answer buyers who message this shop's number? */
   whatsappConnected: boolean;
+  /** Answer a buyer's voice note with a voice note. */
+  voiceReplies?: boolean;
+  /** Is a voice provider set up on the server, so voiceReplies can work? */
+  voiceRepliesAvailable?: boolean;
 }
 
 /** Send only what changes. null or "" clears an optional setting. */
@@ -425,6 +446,7 @@ export interface VendorSettingsUpdate {
   bankName?: string | null;
   bankAccountName?: string | null;
   bankAccountNumber?: string | null;
+  voiceReplies?: boolean;
 }
 
 export interface ApiError {
@@ -462,6 +484,12 @@ export const endpoints = {
     endpoint<void, ListMessagesResponse>("GET", `/conversations/${enc(id)}/messages`),
   pauseConversation: (id: string) =>
     endpoint<void, ConversationResponse>("POST", `/conversations/${enc(id)}/pause`),
+  /** The vendor has looked at a Scam Shield flag. Doesn't switch Sowo back on. */
+  resolveFlag: (conversationId: string, flagId: string) =>
+    endpoint<void, { flag: ShieldFlag }>(
+      "POST",
+      `/conversations/${enc(conversationId)}/flags/${enc(flagId)}/resolve`,
+    ),
   resumeConversation: (id: string) =>
     endpoint<void, ConversationResponse>("POST", `/conversations/${enc(id)}/resume`),
   sendVendorReply: (id: string) =>

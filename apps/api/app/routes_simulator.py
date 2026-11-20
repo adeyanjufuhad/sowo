@@ -99,7 +99,9 @@ def send_simulator_message(
         raise HTTPException(status_code=400, detail="body must not be empty")
     conversation = _simulator_conversation(session, payload.conversationId, payload.customerName)
     messages = [flow.add_message(session, conversation, MessageRole.BUYER, body)]
-    reply = flow.answer_buyer(session, conversation, model, get_settings(), deliver=False)
+    reply = flow.screen_buyer(session, conversation, messages[0], get_settings(), deliver=False) or flow.answer_buyer(
+        session, conversation, model, get_settings(), deliver=False
+    )
     if reply is not None:
         messages.append(reply)
     return _exchange(session, conversation, messages)
@@ -121,7 +123,9 @@ def send_simulator_voice(
     message = flow.add_message(session, conversation, MessageRole.BUYER, "", voice=True)
     status = notes.hear(session, message, audio, payload.mimeType, settings)
     if status == VoiceStatus.TRANSCRIBED:
-        reply = flow.answer_buyer(session, conversation, model, settings, deliver=False)
+        reply = flow.screen_buyer(session, conversation, message, settings, deliver=False) or flow.answer_buyer(
+            session, conversation, model, settings, deliver=False
+        )
     else:
         reply = flow.reply_cant_hear(session, conversation, status, settings, deliver=False)
     return _exchange(session, conversation, [message] if reply is None else [message, reply])

@@ -14,6 +14,7 @@ from app.deps import CurrentVendor
 from app.models import Vendor
 from app.schemas import VendorSettingsResponse, VendorSettingsUpdate
 from app.services.vendors import BANK_ACCOUNT_NUMBER, vendor_bank
+from app.services.voice.tts import text_to_speech
 
 router = APIRouter()
 SessionDependency = Annotated[Session, Depends(get_db)]
@@ -33,6 +34,8 @@ def settings_response(vendor: Vendor) -> VendorSettingsResponse:
         bankAccountNumber=vendor.bank_account_number,
         paymentReady=vendor.payment_mode != "manual" or vendor_bank(vendor) is not None,
         whatsappConnected=bool(vendor.whatsapp_phone_number_id and get_settings().whatsapp_access_token),
+        voiceReplies=vendor.voice_replies,
+        voiceRepliesAvailable=text_to_speech(get_settings()) is not None,
     )
 
 
@@ -83,6 +86,8 @@ def update_vendor_settings(
         vendor.bank_account_number = _digits(payload.bankAccountNumber, "The account number", BANK_ACCOUNT_NUMBER)
     if "paymentMode" in sent and payload.paymentMode is not None:
         vendor.payment_mode = payload.paymentMode
+    if "voiceReplies" in sent and payload.voiceReplies is not None:
+        vendor.voice_replies = payload.voiceReplies
     if vendor.payment_mode == "manual" and vendor_bank(vendor) is None:
         session.rollback()
         raise HTTPException(
