@@ -31,6 +31,8 @@ def test_a_vendor_reads_their_own_setup(client: TestClient) -> None:
         "bankAccountNumber": None,
         "paymentReady": True,
         "whatsappConnected": True,
+        "voiceReplies": True,
+        "voiceRepliesAvailable": False,
     }
 
 

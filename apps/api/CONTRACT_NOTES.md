@@ -91,3 +91,12 @@ New tables: `quotes` (a priced basket the model was shown; `request_payment` tur
 - **New:** `POST /simulator/voice` takes `{ conversationId?, customerName?, audio (base64), mimeType }` and answers like `POST /simulator/messages` (`{ conversation, messages }`, the buyer's voice message then Sowo's reply). `400` for bad base64, `413` for a recording over `VOICE_MAX_BYTES`. Endpoint `sendSimulatorVoice`, type `SimulatorVoiceRequest`.
 - **New:** `GET /simulator/conversations/{id}/messages/{messageId}/audio` (no sign-in; simulator chats only).
 - **Tables and columns.** New `voice_notes` (the audio, its type and length); `messages.kind` (`text` or `voice`), `messages.voice_status`, `messages.voice_note_id`. Migration `0008`.
+
+### Voice replies and Scam Shield (Sprint 2)
+
+- **Voice replies.** An AI message can now carry `voice` too: `{ status: "TRANSCRIBED", hasAudio: true }`, where `body` is exactly what was spoken. Its audio comes from the same `/audio` endpoints as a buyer's voice note.
+- **`VendorSettings.voiceReplies`** (boolean, default `true`) and **`VendorSettings.voiceRepliesAvailable`** (read-only: is a voice provider configured). `PATCH /vendor/settings` accepts `voiceReplies`.
+- **`Conversation.openFlags`** (number): Scam Shield flags not yet resolved. The dashboard puts these chats at the top, with `NEEDS_ATTENTION`.
+- **`GET /conversations/{id}/messages`** gains `flags`: the open `ShieldFlag`s, oldest first, each `{ id, rule, severity: "medium" | "high", warning, evidence, createdAt, resolvedAt? }`. Rules: `SECRET_REQUEST`, `IMPERSONATION` (high: the chat moves to `NEEDS_ATTENTION` and Sowo sends a fixed safety reply), `PHISHING_LINK`, `RELEASE_BEFORE_PAYMENT`, `UNVERIFIED_PAYMENT`, `REPEATED_FAILED_PAYMENTS` (medium: flagged, Sowo carries on).
+- **New:** `POST /conversations/{id}/flags/{flagId}/resolve` (signed in, own chats; `404` otherwise; repeating it is fine) returns `{ flag }`. It does not resume Sowo. Endpoint `resolveFlag`.
+- **Tables and columns.** `vendors.voice_replies`; new `shield_flags`. Migration `0009`.

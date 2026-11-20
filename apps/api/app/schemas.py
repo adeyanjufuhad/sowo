@@ -16,6 +16,21 @@ class ConversationResponse(BaseModel):
     status: Literal["AI_ACTIVE", "NEEDS_ATTENTION", "HUMAN_TAKEOVER", "CLOSED"]
     lastMessageAt: str
     preview: str
+    openFlags: int = 0  # Scam Shield flags the vendor hasn't resolved
+
+
+class ShieldFlagResponse(BaseModel):
+    id: str
+    rule: str
+    severity: Literal["medium", "high"]
+    warning: str  # what the vendor should do, in plain words
+    evidence: str  # the buyer's words that triggered it
+    createdAt: str
+    resolvedAt: str | None = None
+
+
+class ShieldFlagEnvelope(BaseModel):
+    flag: ShieldFlagResponse
 
 
 class MessageVoiceResponse(BaseModel):
@@ -43,6 +58,7 @@ class ListConversationsResponse(BaseModel):
 class ListMessagesResponse(BaseModel):
     conversation: ConversationResponse
     messages: list[MessageResponse]
+    flags: list[ShieldFlagResponse] = []  # the open ones, oldest first
 
 
 class ConversationEnvelope(BaseModel):
@@ -204,6 +220,9 @@ class VendorSettingsResponse(BaseModel):
     paymentReady: bool
     # Can Sowo answer buyers who message this shop's WhatsApp number?
     whatsappConnected: bool
+    # Answer a buyer's voice note with a voice note. voiceRepliesAvailable says whether a voice provider is set up.
+    voiceReplies: bool = True
+    voiceRepliesAvailable: bool = False
 
 
 class VendorSettingsUpdate(BaseModel):
@@ -217,6 +236,7 @@ class VendorSettingsUpdate(BaseModel):
     bankName: str | None = None
     bankAccountName: str | None = None
     bankAccountNumber: str | None = None
+    voiceReplies: bool | None = None
 
 
 class ProductCreate(BaseModel):

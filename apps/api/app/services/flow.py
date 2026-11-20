@@ -32,8 +32,9 @@ from app.services.agent import AgentReply, run_agent
 from app.services.money import format_naira
 from app.services.ollama import ChatModel, OllamaError
 from app.services.orders import mark_order_paid
+from app.services.shield import check, rules
 from app.services.vendors import owner_name, vendor_for_number
-from app.services.voice import notes
+from app.services.voice import notes, replies
 from app.services.whatsapp import InboundMessage
 
 logger = logging.getLogger(__name__)
@@ -169,12 +170,18 @@ def answer_buyer(
         if reply.escalation:
             conversation.status = ConversationStatus.NEEDS_ATTENTION
         session.commit()
+        replies.speak_reply(session, conversation, message, reply, settings)  # a voice note, if the buyer spoke
 
     if deliver:
         if settings.reply_delay_seconds:
             time.sleep(settings.reply_delay_seconds)  # a beat of typing, so it doesn't feel like a machine
         vendor = vendor_of(session, conversation)
-        send_to_buyer(vendor, conversation, message.text)
+        note = message.voice_note if message.kind == "voice" else None
+        spoken = note is not None and whatsapp.send_whatsapp_voice(
+            vendor.whatsapp_phone_number_id, conversation.customer_phone, note.data, note.mime_type
+        )
+        if not spoken:
+            send_to_buyer(vendor, conversation, message.text)
         if reply.escalation:
             notify_vendor(vendor, f"{_buyer_name(conversation)} needs you: {reply.escalation}.")
         if reply.receipt_order_id:  # the model passed on "I've paid": tell the vendor to check their account
@@ -201,10 +208,55 @@ def submit_simulated_receipt(
 ) -> list[Message]:
     """The /try page's 'I've sent the transfer' button: the same thing a receipt picture does on WhatsApp."""
     messages = [add_message(session, conversation, MessageRole.BUYER, "I've sent the transfer. Here is my receipt.")]
+    check.inspect(session, conversation, messages[0], settings, image=True)
     register_receipt(session, conversation, order, settings)
     if should_reply(conversation):
         messages.append(add_message(session, conversation, MessageRole.AI, payments.RECEIPT_RECEIVED_REPLY))
     return messages
+
+
+def screen_buyer(
+    session: Session, conversation: Conversation, message: Message, settings: Settings, *, image: bool = False,
+    deliver: bool,
+) -> Message | None:
+    """Scam Shield on a buyer's message. Anything it finds is flagged for the vendor; a high-severity find (a code or
+    PIN request, someone posing as a bank or Paystack) also hands the chat to the vendor, so Sowo never acts on it.
+    Returns Sowo's safety reply when it sent one."""
+    findings = check.inspect(session, conversation, message, settings, image=image)
+    high = next((finding for finding in findings if finding.severity == "high"), None)
+    if high is None:
+        return None
+    was_replying = should_reply(conversation)
+    conversation.status = ConversationStatus.NEEDS_ATTENTION
+    session.commit()
+    vendor = vendor_of(session, conversation)
+    if deliver:
+        notify_vendor(
+            vendor,
+            f"Scam Shield: {_buyer_name(conversation)}. {rules.WARNINGS[high.rule]} "
+            "Sowo has stopped replying in that chat until you look.",
+        )
+    if not was_replying:
+        return None
+    reply = add_message(
+        session, conversation, MessageRole.AI, safety_reply(pidgin=_is_pidgin(session, conversation), owner=owner_name(vendor))
+    )
+    if deliver:
+        send_to_buyer(vendor, conversation, reply.text)
+    return reply
+
+
+def safety_reply(*, pidgin: bool, owner: str) -> str:
+    """Written by us, not the model."""
+    if pidgin:
+        return (
+            f"I don pass this chat give {owner}, e go reply you here. Abeg no share any code, PIN, BVN or password "
+            "with anybody, and pay only through the details I send you for this chat."
+        )
+    return (
+        f"I've passed this chat to {owner}, who will reply here. Please never share a code, PIN, BVN or password "
+        "with anyone, and only pay through the details I send you in this chat."
+    )
 
 
 def reply_cant_hear(
@@ -263,7 +315,8 @@ def handle_inbound(session: Session, inbound: InboundMessage, model: ChatModel, 
         if status != VoiceStatus.TRANSCRIBED:
             reply_cant_hear(session, conversation, status, settings, deliver=True)
             return
-    elif inbound.kind != "text":
+    screen_buyer(session, conversation, message, settings, image=inbound.kind in RECEIPT_KINDS, deliver=True)
+    if not voice and inbound.kind != "text":
         # A picture or document while a bank transfer is waiting is the buyer's receipt.
         order = payments.open_manual_order(session, conversation.id) if inbound.kind in RECEIPT_KINDS else None
         if order is not None:

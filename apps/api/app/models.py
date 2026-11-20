@@ -14,6 +14,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    true,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -90,6 +91,8 @@ class Vendor(Base):
     # The SIMULATOR_VENDOR_NAME that first picked this shop for the /try demo. Remembering it means the shop can
     # rename itself without the demo losing it, and nobody else can take the demo over by signing up as the old name.
     simulator_key: Mapped[str | None] = mapped_column(String(120), unique=True)
+    # Answer a buyer's voice note with a voice note (when a voice provider is configured). On unless the vendor says no.
+    voice_replies: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default=true())
     products: Mapped[list["Product"]] = relationship(back_populates="vendor")
     delivery_zones: Mapped[list["DeliveryZone"]] = relationship(back_populates="vendor")
 
@@ -192,6 +195,20 @@ class VoiceNote(Base):
     data: Mapped[bytes] = mapped_column(LargeBinary, nullable=False, deferred=True)  # only read to play it
     duration_ms: Mapped[int | None] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=func.now())
+
+
+class ShieldFlag(Base):
+    """Scam Shield caught something in a buyer's message. The vendor sees it in the dashboard and resolves it."""
+
+    __tablename__ = "shield_flags"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    conversation_id: Mapped[str] = mapped_column(ForeignKey("conversations.id"), nullable=False, index=True)
+    message_id: Mapped[str | None] = mapped_column(ForeignKey("messages.id"))
+    rule: Mapped[str] = mapped_column(String(40), nullable=False)
+    severity: Mapped[str] = mapped_column(String(8), nullable=False)  # "medium" or "high"
+    evidence: Mapped[str] = mapped_column(String(300), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, server_default=func.now())
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 def new_quote_id() -> str:
